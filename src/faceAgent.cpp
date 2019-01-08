@@ -1,6 +1,5 @@
 #include "faceAgent.h"
-#include "personFaceRepo.h"
-#define DEFAULT_APP_NAME "door"
+#include "faceRepo.h"
 namespace kface {
 
 UserFace::UserFace(const std::string &userId,
@@ -100,8 +99,7 @@ void FaceAgent::getUserFaces(const std::string &appName,
     const std::string &userName,
     std::map<std::string, std::shared_ptr<ImageFace>> &faceMap) {
 
-  FaceAgent faceAgent = FaceAgent::getFaceAgent();
-  auto app = faceAgent.getAppFace(appName);
+  auto app = getAppFace(appName);
   if (app == nullptr) {
     return;
   }
@@ -115,7 +113,6 @@ void FaceAgent::getUserFaces(const std::string &appName,
 }
 
 int FaceAgent::addPersonFace(const PersonFace &face) {
-  FaceAgent faceAgent = FaceAgent::getFaceAgent();
   std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
   auto app = getAppFace(appName);
   if (app == nullptr) {

@@ -6,6 +6,8 @@
 #include <vector>
 #include <list>
 
+#define DEFAULT_APP_NAME "door"
+
 namespace kface {
 struct PersonFace;
 struct ImageFace {
@@ -63,7 +65,7 @@ class AppFace {
 
 class FaceAgent {
  public:
-  static FaceAgent&  getFaceAgent();
+  static FaceAgent& getFaceAgent();
   int addAppFace(const std::string &appName);
   std::shared_ptr<AppFace> getAppFace(const std::string &appName);
   void getUserFaces(const std::string &appName,
@@ -79,6 +81,7 @@ class FaceAgent {
   private:
     std::map<std::string, std::shared_ptr<AppFace>> appFaces;
 };
+
 
 
 }
