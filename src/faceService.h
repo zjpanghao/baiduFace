@@ -15,17 +15,39 @@ struct Location {
   int x;
   int y;
   int width;
+  int height;
+  float rotation;
 };
 
 struct FaceAttr {
   int age;
   int gender;
   double genderConfidence;
+  int expression;
+  int glasses;
+};
+
+struct Occlution {
+  double leftEye;
+  double rightEye;
+  double nose;
+  double mouth;
+  double leftCheek;
+  double rightCheek;
+  double chinContour;
+};
+
+struct FaceQuality {
+  int illumination;
+  double blur;
+  int completeness;
+  Occlution occlution;
 };
 
 struct FaceDetectResult {
   std::string faceToken;
   std::shared_ptr<FaceAttr> attr;
+  std::shared_ptr<FaceQuality> quality;
   Location location;
   TrackFaceInfo trackInfo;
 };
@@ -43,6 +65,7 @@ class FaceService {
   FaceService();
   int init();
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, int len);
+  std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, int len);
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,
              std::vector<FaceDetectResult> &result);
@@ -57,13 +80,17 @@ class FaceService {
                   const std::string &dataBase64,
                   std::string &faceToken);
 
+  int delUser(const std::string &groupId,
+              const std::string &userId);
+
   int delUserFace(const std::string &groupId,
                   const std::string &userId,
                   const std::string &faceToken);
 
  private:
+  int getBufferIndex();
   int initAgent(); 
-  std::map<std::string, FaceBuffer> faceBuffers;
+  std::map<std::string, FaceBuffer> faceBuffers[2];
   std::shared_ptr<BaiduFaceApi>  api_{nullptr};
 };
 }

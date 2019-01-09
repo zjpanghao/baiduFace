@@ -6,6 +6,7 @@
 #include <glog/logging.h>
 #include <regex>
 #include <iterator>
+#include "cv_help.h"
 #define MAX_FACE_TRACK 5
 using namespace cv;
 namespace kface {
@@ -55,6 +56,7 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     std::vector<FaceDetectResult> &detectResult 
     ) {
   int rc = 0;
+  api_->clearTrackedFaces();
   Mat m = imdecode(Mat(data), 1);
 #if 0
   int count = api_->get_face_feature_by_buf(&data[0], data.size(), feature);
@@ -73,17 +75,24 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;
     result.trackInfo = info;
-    int x = info.box.mCenter_x - info.box.mWidth / 2;
-    int y = info.box.mCenter_y - info.box.mWidth / 2;
+    RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
+    Rect rect = rRect.boundingRect();
+    int x = rect.x;
+    int y = rect.y;
+    if (x < 0 || y < 0) { return -3;};
+    if (rect.width + x > m.cols) {
+      return -3;
+    }
+    if (rect.height + y > m.rows) {
+      return -3;
+    }
     result.location.x = x;
     result.location.y = y;
-    LOG(INFO) << "CX" << info.box.mCenter_x;
-    LOG(INFO) << "CY" << info.box.mCenter_y;
-    LOG(INFO) << "The x is " << x;
-    LOG(INFO) << "The y is " << y;
-    LOG(INFO) << "The width is " << info.box.mWidth;
 
-    result.location.width= info.box.mWidth;
+    result.location.width= rect.width;
+    result.location.height= rect.height;
+    result.location.rotation = rRect.angle;
+    
     Mat child(m, Rect(x, y, result.location.width, result.location.width)); 
     const float *feature = nullptr;
     int count = api_->get_face_feature(child, feature);
@@ -94,14 +103,17 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     std::vector<unsigned char> childImage;
     imencode(".bmp", child, childImage);  
     result.attr = getAttr(&childImage[0], childImage.size());
+    result.quality = faceQuality(&childImage[0], childImage.size());
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr();
     FaceBuffer buffer;
     buffer.feature.assign(feature, feature + 512);
-    faceBuffers.insert(std::make_pair(result.faceToken, buffer)); 
+    int inx = getBufferIndex();
+    int old = 1 - inx;
+    faceBuffers[old].clear();
+    faceBuffers[inx].insert(std::make_pair(result.faceToken, buffer)); 
     detectResult.push_back(result);
-    api_->clearTrackedFaces();
   } 
-  
+  api_->clearTrackedFaces();
   return rc;
 }
 
@@ -128,8 +140,9 @@ int FaceService::addUserFace(const std::string &groupId,
     return -2;
   }
   FaceDetectResult &result = results[0];
-  auto it = faceBuffers.find(result.faceToken);
-  if (it == faceBuffers.end()) {
+  int inx = getBufferIndex();
+  auto it = faceBuffers[inx].find(result.faceToken);
+  if (it == faceBuffers[inx].end()) {
     return -3;
   }
   face.feature = it->second.feature;
@@ -149,8 +162,9 @@ int FaceService::search(const std::set<std::string> &groupIds,
   for (auto &v : groupIds) {
     printf("%s\n", v.c_str());
   }
-  auto it = faceBuffers.find(faceToken);
-  if (it == faceBuffers.end()) {
+  int inx = getBufferIndex();
+  auto it = faceBuffers[inx].find(faceToken);
+  if (it == faceBuffers[inx].end()) {
     return -1;
   }
 
@@ -196,35 +210,100 @@ int FaceService::search(const std::set<std::string> &groupIds,
   }
   return 0;
 }
+template<class E>
+static void getBaiString(Json::Value &value, const std::string &key, E &t) {
+  Json::Value &tmp = value["data"]["result"];
+  E e;
+  if (tmp.isNull() || tmp[key].isNull()) {
+    return;
+  }
+  std::stringstream ss;
+  ss << tmp[key].asString();
+  ss >> e;
+}
 
 std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int len){
   std::shared_ptr<FaceAttr> attr;
   std::string result =  api_->face_attr_by_buf(data, len);
+  LOG(INFO) << result;
   Json::Value root;
   Json::Reader reader;;
   std::stringstream ss;
   if (true == reader.parse(result, root)) {
-    attr.reset(new FaceAttr());
-    ss << root["data"]["result"]["age"].asString(); 
-    ss >> attr->age;
-    ss.clear();
-    ss.str("");
-    ss <<  root["data"]["result"]["gender"].asString(); 
-    ss >> attr->gender;
-    ss.clear();
-    ss.str("");
-    ss <<  root["data"]["result"]["gender_conf"].asString(); 
-    ss >> attr->genderConfidence;
+    if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
+      attr.reset(new FaceAttr());
+      getBaiString(root, "age", attr->age);
+      getBaiString(root, "gender", attr->gender);
+      getBaiString(root, "gender_conf", attr->genderConfidence);
+      getBaiString(root, "glass", attr->glasses);
+      getBaiString(root, "expression", attr->expression);
+    }
   }
   return attr;
+}
+
+std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data, int len){
+  std::shared_ptr<FaceQuality> value;
+  std::string result =  api_->face_quality_by_buf(data, len);
+  LOG(INFO) << result;
+  Json::Value root;
+  Json::Reader reader;;
+  std::stringstream ss;
+  if (true == reader.parse(result, root)) {
+    if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
+      value.reset(new FaceQuality());
+      value->completeness = 1;
+      getBaiString(root, "bluriness", value->blur);
+      getBaiString(root, "illum", value->illumination);
+      getBaiString(root, "occl_l_eye", value->occlution.leftEye);
+      getBaiString(root, "occl_r_eye", value->occlution.rightEye);
+      getBaiString(root, "occl_l_contour", value->occlution.leftCheek);
+      getBaiString(root, "occl_r_contour", value->occlution.rightCheek);;
+      getBaiString(root, "occl_mouth", value->occlution.mouth);
+      getBaiString(root, "occl_nose", value->occlution.nose);
+      getBaiString(root, "occl_chin",value->occlution.chinContour);
+    }
+  }
+  return value;
 }
 
 int FaceService::delUserFace(const std::string &groupId,
     const std::string &userId,
     const std::string &faceToken) {
   int rc = 0;
+  PersonFace face;
+  face.appName = DEFAULT_APP_NAME;
+  face.groupId = groupId;
+  face.userId = userId;
+  face.faceToken = faceToken;
+  FaceAgent &agent = FaceAgent::getFaceAgent();
+  rc = agent.delPersonFace(face);
+  if (rc == 0) {
+    flushFaces();
+  }
+  return rc;
+}
 
+int FaceService::delUser(const std::string &groupId,
+    const std::string &userId) {
+  int rc = 0;
+  PersonFace face;
+  face.appName = DEFAULT_APP_NAME;
+  face.groupId = groupId;
+  face.userId = userId;
+  FaceAgent &agent = FaceAgent::getFaceAgent();
+  rc = agent.delPerson(face);
+  if (rc == 0) {
+    flushFaces();
+  }
+  return rc;
+}
 
+int FaceService::getBufferIndex() {
+  time_t current = time(NULL);
+  struct tm val;
+  localtime_r(&current, &val);
+  return val.tm_mday % 2;
 }
 
 }

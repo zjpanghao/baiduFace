@@ -18,7 +18,14 @@ int UserFace::addImageFace(std::shared_ptr <ImageFace> imageFace) {
   imageFaces.insert(std::make_pair(imageFace->faceToken, imageFace));
   return 0;
 }
- 
+
+int UserFace::delImageFace(const std::string &faceToken) {
+   if (imageFaces.erase(faceToken) == 0) {
+     return -1;
+   }
+   return 0;
+}
+
 std::shared_ptr<ImageFace>  UserFace::getImageFace(const std::string &faceToken) {
   auto it = imageFaces.find(faceToken);
   if (it == imageFaces.end()) {
@@ -49,6 +56,14 @@ int GroupFace::addUserFace(const std::string &userId, const std::string &userNam
   std::shared_ptr<UserFace> userFace(new UserFace(userId, userName));
   userFaces.insert(std::make_pair(userId, userFace));
   return 0;
+}
+
+int GroupFace::delUser(const std::string &userId) {
+  if (userId == "") {
+    return -1;
+  }
+  int rc = userFaces.erase(userId);
+  return rc == 0 ? -2 : 0;
 }
 
 int AppFace::addGroupFace(const std::string &groupId) {
@@ -110,6 +125,40 @@ void FaceAgent::getUserFaces(const std::string &appName,
       faceMap = user->getImageFaces();
     }
   }
+}
+
+int FaceAgent::delPerson(const PersonFace &face) {
+  std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
+  auto app = getAppFace(appName);
+  if (app == nullptr) {
+    return -1;
+  }
+  auto group = app->getGroupFace(face.groupId);
+  if (group == nullptr) {
+      return -2;
+  }
+  
+  int rc = group->delUser(face.userId);
+  return rc;
+}
+
+int FaceAgent::delPersonFace(const PersonFace &face) {
+  std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
+  auto app = getAppFace(appName);
+  if (app == nullptr) {
+    return -1;
+  }
+  auto group = app->getGroupFace(face.groupId);
+  if (group == nullptr) {
+      return -2;
+  }
+
+  auto user = group->getUserFace(face.userId);
+  if (user == nullptr) {
+      return -3;
+  }
+  int rc = user->delImageFace(face.faceToken);
+  return rc;
 }
 
 int FaceAgent::addPersonFace(const PersonFace &face) {

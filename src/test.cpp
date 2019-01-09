@@ -159,15 +159,37 @@ void test_attr(const char *fname) {
   }
 }
 
+void test_quality(const char *fname) {
+  FaceService &service = FaceService::getFaceService();
+  if (0 !=service.init()) {
+    return;
+  }
+  std::string out_buf;
+  int buf_len = ImageBuf::get_buf(fname, out_buf);
+  auto ft =  service.faceQuality((const unsigned char*)&out_buf[0], buf_len);
+  if (ft != nullptr) {
+  }
+}
+
+void test_delUser(std::string gid, std::string uid) {
+  FaceService &service = FaceService::getFaceService();
+  int rc = service.delUser(gid, uid);
+  LOG(INFO) << rc;
+
+  
+}
+
 void ev_server_start(int);
 int main(int argc, char *argv[]) {
   initGlog(argv[0]);
-  add_dir("221");
+//  add_dir("221");
 //  test_search(argv[1]);
   FaceService &service = FaceService::getFaceService();
   if (0 !=service.init()) {
     return -1;
   }
+  //test_delUser("227", "56");
+  //test_quality("33.jpg");
   ev_server_start(10556);
   //test_search("33.jpg");
   //test_attr("33.jpg");

@@ -21,7 +21,7 @@ class UserFace {
   UserFace(const std::string &userId, 
            const std::string &userName);
   int addImageFace(std::shared_ptr <ImageFace> imageFace);
-  int delImageFace(const std::string faceToken);
+  int delImageFace(const std::string &faceToken);
   std::shared_ptr<ImageFace>  getImageFace(const std::string &faceToken);
   std::map<std::string, std::shared_ptr<ImageFace> > getImageFaces() {
     return imageFaces;
@@ -38,6 +38,7 @@ class GroupFace {
   GroupFace(const std::string &groupId);
   int addUserFace(const std::string &userId, const std::string &userName);
   int delUserFace(const std::string &userId);
+  int delUser(const std::string &userId);
   std::shared_ptr<UserFace> getUserFace(const std::string &userId);
   std::map<std::string, std::shared_ptr<UserFace>> getUserFaces() {
     return userFaces;
@@ -74,6 +75,8 @@ class FaceAgent {
       std::map<std::string, std::shared_ptr<ImageFace>> &faceMap);
   void getDefaultPersonFaces(std::list<PersonFace> &faces);
   int addPersonFace(const PersonFace &face);
+  int delPersonFace(const PersonFace &face);
+  int delPerson(const PersonFace &face);
   std::map<std::string, std::shared_ptr<AppFace>> getAppFaces() {
     return appFaces;
   }
