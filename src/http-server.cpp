@@ -246,8 +246,9 @@ static void faceDetectCb(struct evhttp_request *req, void *arg) {
   rc = service.detect(cdata, faceNum, result);
   if (rc != 0) {
     rc = -4;
-    sendResponse(rc, "detect face error", req, response);
-    return;
+    //sendResponse(rc, "detect face error", req, response);
+    //return;
+    result.clear();
   }
   it = result.begin();
   faceResult["error_code"] = "0";
@@ -324,7 +325,9 @@ static void faceDetectCb(struct evhttp_request *req, void *arg) {
     content["face_list"] = items;
     faceResult["result"] = content;
   }
-  LOG(INFO) << faceResult.toStyledString();
+  if (result.size() > 0) {
+    LOG(INFO) << faceResult.toStyledString();
+  }
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
 }

@@ -204,9 +204,9 @@ int main()
    // test_face_quality(api);
 
     // 测试对比
-   // test_compare(api);
+    test_compare(api);
     // 测试人脸检测
-    test_liveness_track(api);
+    //test_liveness_track(api);
    // 测试获取设备id
     test_get_device_id(api);
    // 测试是否授权

@@ -1,5 +1,6 @@
 #include "faceAgent.h"
 #include "faceRepo.h"
+#include <glog/logging.h>
 namespace kface {
 
 UserFace::UserFace(const std::string &userId,
@@ -13,6 +14,7 @@ int UserFace::addImageFace(std::shared_ptr <ImageFace> imageFace) {
     return -1;
   }
   if (imageFaces.count(imageFace->faceToken) != 0) {
+    LOG(INFO) << "add face twice for:" << imageFace->faceToken;
     return -2;
   }
   imageFaces.insert(std::make_pair(imageFace->faceToken, imageFace));
@@ -20,9 +22,7 @@ int UserFace::addImageFace(std::shared_ptr <ImageFace> imageFace) {
 }
 
 int UserFace::delImageFace(const std::string &faceToken) {
-   if (imageFaces.erase(faceToken) == 0) {
-     return -1;
-   }
+   imageFaces.erase(faceToken);
    return 0;
 }
 
@@ -62,8 +62,8 @@ int GroupFace::delUser(const std::string &userId) {
   if (userId == "") {
     return -1;
   }
-  int rc = userFaces.erase(userId);
-  return rc == 0 ? -2 : 0;
+  userFaces.erase(userId);
+  return 0;
 }
 
 int AppFace::addGroupFace(const std::string &groupId) {

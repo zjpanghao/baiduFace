@@ -58,14 +58,42 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   int rc = 0;
   api_->clearTrackedFaces();
   Mat m = imdecode(Mat(data), 1);
-#if 0
-  int count = api_->get_face_feature_by_buf(&data[0], data.size(), feature);
-  if (count != 512) {
-    return -1;
-  }
-#endif
+#if 0 
+  std::vector<TrackFaceInfo>   *out = new std::vector<TrackFaceInfo> ();
+  int nFace = api_->track(out, m, faceNum);
+  const float *feature = nullptr;
 
-  std::unique_ptr< std::vector<TrackFaceInfo> >  out(new std::vector<TrackFaceInfo>());
+  for (TrackFaceInfo &info : *out) {
+    FaceDetectResult result;
+    result.trackInfo = info;
+    RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
+    Rect rect = rRect.boundingRect();
+    LOG(INFO) << "x:" << rect.x << "y:" << rect.y << "width" << rect.width << "height" << rect.height;
+    Mat child(m, Rect(rect.x, rect.y, rect.width, rect.height)); 
+    result.faceToken = MD5(ImageBase64::encode(&data[0], data.size())).toStr();
+    std::vector<unsigned char> childImage;
+    imencode(".jpg", child, childImage);  
+    int count = api_->get_face_feature_by_buf(&childImage[0],childImage.size(), feature);
+    printf("Feature : %x\n", feature);
+    if (count != 512) {
+      return -1;
+    }
+
+    FaceBuffer buffer;
+    buffer.feature.assign(feature, feature + 512);
+    int inx = getBufferIndex();
+    int old = 1 - inx;
+    if (!faceBuffers[old].empty()) {
+      LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
+      faceBuffers[old].clear();
+    }
+    faceBuffers[inx].insert(std::make_pair(result.faceToken, buffer)); 
+    detectResult.push_back(result);
+  }
+
+#else
+
+  std::unique_ptr<std::vector<TrackFaceInfo>>   out(new std::vector<TrackFaceInfo> ());
   std::vector<TrackFaceInfo> *vec = out.get();
   int nFace = api_->track(vec, m, faceNum);
   if (nFace <= 0) {
@@ -93,26 +121,35 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     result.location.height= rect.height;
     result.location.rotation = rRect.angle;
     
-    Mat child(m, Rect(x, y, result.location.width, result.location.width)); 
+    Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
+    LOG(INFO) << "child" << child.isContinuous();
+    std::vector<unsigned char> childImage;
+    imencode(".jpg", child, childImage);  
     const float *feature = nullptr;
-    int count = api_->get_face_feature(child, feature);
+    int count = api_->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
     printf("Feature : %x\n", feature);
     if (count != 512) {
       continue;
     }
-    std::vector<unsigned char> childImage;
-    imencode(".bmp", child, childImage);  
+    FaceBuffer buffer;
+    buffer.feature.assign(feature, feature + 512);
     result.attr = getAttr(&childImage[0], childImage.size());
     result.quality = faceQuality(&childImage[0], childImage.size());
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr();
-    FaceBuffer buffer;
-    buffer.feature.assign(feature, feature + 512);
+    if (true) {
+      std::string name = "image/" + result.faceToken + ".jpg";
+      imwrite(name.c_str(), child);
+    }
     int inx = getBufferIndex();
     int old = 1 - inx;
-    faceBuffers[old].clear();
+    if (!faceBuffers[old].empty()) {
+      LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
+      faceBuffers[old].clear();
+    }
     faceBuffers[inx].insert(std::make_pair(result.faceToken, buffer)); 
     detectResult.push_back(result);
   } 
+#endif
   api_->clearTrackedFaces();
   return rc;
 }
@@ -152,6 +189,7 @@ int FaceService::addUserFace(const std::string &groupId,
     flushFaces();
   }
   faceToken = face.faceToken;
+  LOG(INFO) << "add face token:" << faceToken << "rc:" << rc;
   return rc;
 }
 
@@ -181,13 +219,13 @@ int FaceService::search(const std::set<std::string> &groupIds,
       continue;
     }
     float score = api_->compare_feature(face.feature, faceBuffer.feature);
+    LOG(INFO) << "The compare score:" << score;
     std::string key = face.groupId + "_" +face.userId; 
     if (userScore[key] < score)  {
       userScore[key] = score;
     }
   }
 
-  LOG(INFO) << "userScore" <<  userScore.size(); 
   std::vector<std::pair<std::string,float>>  topPair(userScore.begin(), userScore.end());
   std::partial_sort(topPair.begin(), num > topPair.size() ? topPair.end() : topPair.begin() + num, topPair.end(),
       [](const std::pair<std::string, float> &a, const std::pair<std::string, float>  &b) {
@@ -213,13 +251,12 @@ int FaceService::search(const std::set<std::string> &groupIds,
 template<class E>
 static void getBaiString(Json::Value &value, const std::string &key, E &t) {
   Json::Value &tmp = value["data"]["result"];
-  E e;
   if (tmp.isNull() || tmp[key].isNull()) {
     return;
   }
   std::stringstream ss;
   ss << tmp[key].asString();
-  ss >> e;
+  ss >> t;
 }
 
 std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int len){
@@ -235,6 +272,7 @@ std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int l
       getBaiString(root, "age", attr->age);
       getBaiString(root, "gender", attr->gender);
       getBaiString(root, "gender_conf", attr->genderConfidence);
+      LOG(INFO) << "GEN C" << attr->genderConfidence;
       getBaiString(root, "glass", attr->glasses);
       getBaiString(root, "expression", attr->expression);
     }
@@ -303,7 +341,8 @@ int FaceService::getBufferIndex() {
   time_t current = time(NULL);
   struct tm val;
   localtime_r(&current, &val);
-  return val.tm_mday % 2;
+  int inx = val.tm_mday % 2;
+  return inx;
 }
 
 }

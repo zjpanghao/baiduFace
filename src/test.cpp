@@ -54,7 +54,7 @@ void add_image(const char *fname, std::string uid) {
   //std::vector<unsigned char> data(&out_buf[0], &out_buf[0] + buf_len);
   FaceService &service = FaceService::getFaceService();
   LOG(INFO) << service.init();
-  std::string faceToken;
+  std::string faceToken = "aaa";
   int rc = service.addUserFace("227", uid, "zhangsan", base64, faceToken);
   LOG(INFO) << "add userFace " << fname << " rc:" << rc;
 }
@@ -69,6 +69,10 @@ int test_search(std::string name) {
   std::vector<FaceDetectResult> result;
   int rc = service.detect(data, 1, result);
   LOG(INFO) << rc << "size:" << result.size();
+  if (rc != 0 || result.size() <= 0) {
+    LOG(INFO) << "NO face";
+    return -1;
+  }
   FaceDetectResult fResult = result[0];
   LOG(INFO) << "token:" << fResult.faceToken;
   std::regex re(",");
@@ -76,9 +80,11 @@ int test_search(std::string name) {
   std::vector<FaceSearchResult> searchResult;
   std::set<std::string> groups(std::sregex_token_iterator(gid.begin(), gid.end(), re, -1),
   std::sregex_token_iterator());
-  rc =  service.search(groups, fResult.faceToken, 36,  searchResult);
+  rc =  service.search(groups, fResult.faceToken, 2,  searchResult);
+  for (FaceSearchResult result : searchResult) {
   LOG(INFO) << rc 
-    << "userId:" << searchResult.size();
+    << "userId:" << result.userId <<" " << result.score;
+  }
   return 0;
 }
 
@@ -191,8 +197,8 @@ int main(int argc, char *argv[]) {
   //test_delUser("227", "56");
   //test_quality("33.jpg");
   ev_server_start(10556);
-  //test_search("33.jpg");
   //test_attr("33.jpg");
- // test_detect("33.jpg");
+  //add_image("33.jpg", "1");
+  //test_search("3030.jpg");
   return 0;
 }

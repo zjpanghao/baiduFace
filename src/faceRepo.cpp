@@ -67,9 +67,8 @@ namespace kface {
       return;
     }
     std::string res = root.toStyledString();
-    LOG(INFO) << res;
     if (res.size() < 10) {
-      return;
+      res = "";
     }
     std::ofstream imageFile(fname, std::ofstream::out);
     imageFile << res;
