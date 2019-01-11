@@ -182,13 +182,14 @@ int FaceService::addUserFace(const std::string &groupId,
   if (it == faceBuffers[inx].end()) {
     return -3;
   }
-  face.feature = it->second.feature;
-  face.faceToken = result.faceToken;
+  face.image.reset(new ImageFace());
+  face.image->feature= it->second.feature;
+  face.image->faceToken = result.faceToken;
   int rc = faceAgent.addPersonFace(face);
   if (rc == 0) {
     flushFaces();
   }
-  faceToken = face.faceToken;
+  faceToken = face.image->faceToken;
   LOG(INFO) << "add face token:" << faceToken << "rc:" << rc;
   return rc;
 }
@@ -218,8 +219,7 @@ int FaceService::search(const std::set<std::string> &groupIds,
     if (groupIds.count(face.groupId) == 0) {
       continue;
     }
-    float score = api_->compare_feature(face.feature, faceBuffer.feature);
-    LOG(INFO) << "The compare score:" << score;
+    float score = api_->compare_feature(face.image->feature, faceBuffer.feature);
     std::string key = face.groupId + "_" +face.userId; 
     if (userScore[key] < score)  {
       userScore[key] = score;
@@ -313,7 +313,8 @@ int FaceService::delUserFace(const std::string &groupId,
   face.appName = DEFAULT_APP_NAME;
   face.groupId = groupId;
   face.userId = userId;
-  face.faceToken = faceToken;
+  face.image.reset(new ImageFace());
+  face.image->faceToken = faceToken;
   FaceAgent &agent = FaceAgent::getFaceAgent();
   rc = agent.delPersonFace(face);
   if (rc == 0) {

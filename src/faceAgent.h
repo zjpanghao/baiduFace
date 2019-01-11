@@ -5,16 +5,12 @@
 #include <string>
 #include <vector>
 #include <list>
+#include "faceEntity.h"
 
 #define DEFAULT_APP_NAME "door"
 
 namespace kface {
 struct PersonFace;
-struct ImageFace {
-  std::string data;
-  std::string faceToken;
-  std::vector<float> feature;
-};
 
 class UserFace {
  public:
@@ -23,6 +19,9 @@ class UserFace {
   int addImageFace(std::shared_ptr <ImageFace> imageFace);
   int delImageFace(const std::string &faceToken);
   std::shared_ptr<ImageFace>  getImageFace(const std::string &faceToken);
+  std::string getUserName() {
+    return userName_;
+  }
   std::map<std::string, std::shared_ptr<ImageFace> > getImageFaces() {
     return imageFaces;
   } 
