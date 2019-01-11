@@ -15,9 +15,6 @@ struct PersonFace {
   std::string groupId;
   std::string userId;
   std::string userName;
-  //std::string faceToken;
-  // char imageDataBase64[MAX_IMAGE_SIZE * 2];
-  //std::vector<float> feature;
   std::shared_ptr<ImageFace> image;
 };
 

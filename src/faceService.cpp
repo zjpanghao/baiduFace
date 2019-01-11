@@ -53,53 +53,16 @@ int FaceService::init() {
  */
 int FaceService::detect(const std::vector<unsigned char> &data,
     int faceNum,
-    std::vector<FaceDetectResult> &detectResult 
-    ) {
+    std::vector<FaceDetectResult> &detectResult) {
   int rc = 0;
   api_->clearTrackedFaces();
   Mat m = imdecode(Mat(data), 1);
-#if 0 
-  std::vector<TrackFaceInfo>   *out = new std::vector<TrackFaceInfo> ();
-  int nFace = api_->track(out, m, faceNum);
-  const float *feature = nullptr;
-
-  for (TrackFaceInfo &info : *out) {
-    FaceDetectResult result;
-    result.trackInfo = info;
-    RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
-    Rect rect = rRect.boundingRect();
-    LOG(INFO) << "x:" << rect.x << "y:" << rect.y << "width" << rect.width << "height" << rect.height;
-    Mat child(m, Rect(rect.x, rect.y, rect.width, rect.height)); 
-    result.faceToken = MD5(ImageBase64::encode(&data[0], data.size())).toStr();
-    std::vector<unsigned char> childImage;
-    imencode(".jpg", child, childImage);  
-    int count = api_->get_face_feature_by_buf(&childImage[0],childImage.size(), feature);
-    printf("Feature : %x\n", feature);
-    if (count != 512) {
-      return -1;
-    }
-
-    FaceBuffer buffer;
-    buffer.feature.assign(feature, feature + 512);
-    int inx = getBufferIndex();
-    int old = 1 - inx;
-    if (!faceBuffers[old].empty()) {
-      LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
-      faceBuffers[old].clear();
-    }
-    faceBuffers[inx].insert(std::make_pair(result.faceToken, buffer)); 
-    detectResult.push_back(result);
-  }
-
-#else
-
-  std::unique_ptr<std::vector<TrackFaceInfo>>   out(new std::vector<TrackFaceInfo> ());
+  std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
   std::vector<TrackFaceInfo> *vec = out.get();
   int nFace = api_->track(vec, m, faceNum);
   if (nFace <= 0) {
     return -2;
   }
-  LOG(INFO) << "track size:" << api_->get_faces()->size();
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;
     result.trackInfo = info;
@@ -107,13 +70,11 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     Rect rect = rRect.boundingRect();
     int x = rect.x;
     int y = rect.y;
-    if (x < 0 || y < 0) { return -3;};
-    if (rect.width + x > m.cols) {
-      return -3;
-    }
-    if (rect.height + y > m.rows) {
-      return -3;
-    }
+    if (x < 0 || y < 0 || rect.width + x > m.cols || rect.height + y > m.rows) { 
+		LOG(ERROR) << "Error face Rect detect (x)" << x <<"(y) "<< y;
+		return -3;
+	};
+   
     result.location.x = x;
     result.location.y = y;
 
@@ -122,34 +83,30 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     result.location.rotation = rRect.angle;
     
     Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
-    LOG(INFO) << "child" << child.isContinuous();
     std::vector<unsigned char> childImage;
     imencode(".jpg", child, childImage);  
     const float *feature = nullptr;
     int count = api_->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
-    printf("Feature : %x\n", feature);
     if (count != 512) {
       continue;
     }
+	
     FaceBuffer buffer;
     buffer.feature.assign(feature, feature + 512);
     result.attr = getAttr(&childImage[0], childImage.size());
     result.quality = faceQuality(&childImage[0], childImage.size());
-    result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr();
-    if (true) {
-      std::string name = "image/" + result.faceToken + ".jpg";
-      imwrite(name.c_str(), child);
-    }
-    int inx = getBufferIndex();
-    int old = 1 - inx;
-    if (!faceBuffers[old].empty()) {
-      LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
-      faceBuffers[old].clear();
-    }
-    faceBuffers[inx].insert(std::make_pair(result.faceToken, buffer)); 
+    result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
+	addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
+	/*
+	** 记录图片信息
+	*/
+    //{
+    //  std::string name = "image/" + result.faceToken + ".jpg";
+    //  imwrite(name.c_str(), child);
+    //}
   } 
-#endif
+
   api_->clearTrackedFaces();
   return rc;
 }
@@ -198,9 +155,6 @@ int FaceService::search(const std::set<std::string> &groupIds,
                         const std::string &faceToken, 
                         int num,
                         std::vector<FaceSearchResult> &searchResult) {
-  for (auto &v : groupIds) {
-    printf("%s\n", v.c_str());
-  }
   int inx = getBufferIndex();
   auto it = faceBuffers[inx].find(faceToken);
   if (it == faceBuffers[inx].end()) {
@@ -212,8 +166,7 @@ int FaceService::search(const std::set<std::string> &groupIds,
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
   faceAgent.getDefaultPersonFaces(faces);
-  PersonFace *target = NULL;
-  float maxScore = 0;
+
   std::map<std::string, float> userScore;
   for (auto &face : faces) {
     if (groupIds.count(face.groupId) == 0) {
@@ -248,6 +201,7 @@ int FaceService::search(const std::set<std::string> &groupIds,
   }
   return 0;
 }
+						
 template<class E>
 static void getBaiString(Json::Value &value, const std::string &key, E &t) {
   Json::Value &tmp = value["data"]["result"];
@@ -262,17 +216,14 @@ static void getBaiString(Json::Value &value, const std::string &key, E &t) {
 std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int len){
   std::shared_ptr<FaceAttr> attr;
   std::string result =  api_->face_attr_by_buf(data, len);
-  LOG(INFO) << result;
   Json::Value root;
   Json::Reader reader;;
-  std::stringstream ss;
   if (true == reader.parse(result, root)) {
     if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
       attr.reset(new FaceAttr());
       getBaiString(root, "age", attr->age);
       getBaiString(root, "gender", attr->gender);
       getBaiString(root, "gender_conf", attr->genderConfidence);
-      LOG(INFO) << "GEN C" << attr->genderConfidence;
       getBaiString(root, "glass", attr->glasses);
       getBaiString(root, "expression", attr->expression);
     }
@@ -283,7 +234,6 @@ std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int l
 std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data, int len){
   std::shared_ptr<FaceQuality> value;
   std::string result =  api_->face_quality_by_buf(data, len);
-  LOG(INFO) << result;
   Json::Value root;
   Json::Reader reader;;
   std::stringstream ss;
@@ -344,6 +294,16 @@ int FaceService::getBufferIndex() {
   localtime_r(&current, &val);
   int inx = val.tm_mday % 2;
   return inx;
+}
+
+void FaceService::addBuffer(std::string &faceToken, FaceBuffer &buffer) {
+  int inx = getBufferIndex();
+  int old = 1 - inx;
+  if (!faceBuffers[old].empty()) {
+    LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
+    faceBuffers[old].clear();
+  }
+  faceBuffers[inx].insert(std::make_pair(faceToken, buffer));
 }
 
 }

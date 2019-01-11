@@ -46,7 +46,7 @@ std::shared_ptr<UserFace> GroupFace::getUserFace(const std::string &userId){
   return it->second;
 }
 
-int GroupFace::addUserFace(const std::string &userId, const std::string &userName) {
+int GroupFace::addUser(const std::string &userId, const std::string &userName) {
   if (userId == "") {
     return -1;
   }
@@ -182,7 +182,7 @@ int FaceAgent::addPersonFace(const PersonFace &face) {
 
   auto user = group->getUserFace(face.userId);
   if (user == nullptr) {
-    group->addUserFace(face.userId, face.userName);
+    group->addUser(face.userId, face.userName);
     user = group->getUserFace(face.userId);
     if (user == nullptr) {
       return -3;

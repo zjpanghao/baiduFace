@@ -90,6 +90,7 @@ class FaceService {
  private:
   int getBufferIndex();
   int initAgent(); 
+  void addBuffer(std::string &faceToken, FaceBuffer &buffer);
   std::map<std::string, FaceBuffer> faceBuffers[2];
   std::shared_ptr<BaiduFaceApi>  api_{nullptr};
 };

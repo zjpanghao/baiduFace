@@ -13,6 +13,7 @@ namespace kface {
   void loadPersonFaces(std::list<PersonFace> &faces) {
     loadPersonFaces(DEFAULT_SAVE_NAME, faces);
   }
+  
   void loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
     std::ifstream imageFile(name, std::ifstream::in);
     std::stringstream buffer;
@@ -23,7 +24,6 @@ namespace kface {
     Json::Reader reader;
     Json::Value root;
     bool f = reader.parse(content, root, true);
-    LOG(INFO) << "parse:" << f;
     if (!f) {
       LOG(ERROR) << reader.getFormatedErrorMessages();
     }
