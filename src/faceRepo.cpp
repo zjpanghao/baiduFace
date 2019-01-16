@@ -13,6 +13,7 @@ namespace kface {
   void loadPersonFaces(std::list<PersonFace> &faces) {
     loadPersonFaces(DEFAULT_SAVE_NAME, faces);
   }
+  
   void loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
     std::ifstream imageFile(name, std::ifstream::in);
     std::stringstream buffer;
@@ -23,20 +24,21 @@ namespace kface {
     Json::Reader reader;
     Json::Value root;
     bool f = reader.parse(content, root, true);
-    LOG(INFO) << "parse:" << f;
     if (!f) {
       LOG(ERROR) << reader.getFormatedErrorMessages();
     }
     LOG(INFO) << "db size :" << root.size();
     for (int i = 0; i < root.size(); i++) {
       PersonFace face;
-      face.faceToken = root[i]["faceToken"].asString();
+      face.image.reset(new ImageFace());
+      face.image->faceToken = root[i]["faceToken"].asString();
       face.userId = root[i]["userId"].asString();
+      face.userName = root[i]["userName"].asString();
       face.groupId = root[i]["groupId"].asString();
       face.appName = root[i]["appName"].asString();
       Json::Value val = root[i]["feature"];
       for (int j = 0; j < val.size(); j++) {
-        face.feature.push_back(val[j].asDouble());
+        face.image->feature.push_back(val[j].asDouble());
       }
       faces.push_back(face);
     }
@@ -46,7 +48,7 @@ namespace kface {
     Json::Value root;
     int index = 0;
     for (const PersonFace &face : faces) {
-      if (face.faceToken == "") {
+      if (face.image->faceToken == "") {
         continue;
       }
       Json::Value image;
@@ -54,10 +56,10 @@ namespace kface {
       image["groupId"] = face.groupId;
       image["userId"] = face.userId;
       image["userName"] = face.userName;
-      image["faceToken"] = face.faceToken;
+      image["faceToken"] = face.image->faceToken;
       Json::Value val;
       int i = 0;
-      for (float v : face.feature) {
+      for (float v : face.image->feature) {
         val[i++] = Json::Value(v);
       }
       image["feature"] = val;

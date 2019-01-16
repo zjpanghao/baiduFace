@@ -5,24 +5,23 @@
 #include <string>
 #include <vector>
 #include <list>
+#include "faceEntity.h"
 
 #define DEFAULT_APP_NAME "door"
 
 namespace kface {
 struct PersonFace;
-struct ImageFace {
-  std::string data;
-  std::string faceToken;
-  std::vector<float> feature;
-};
 
 class UserFace {
  public:
   UserFace(const std::string &userId, 
-           const std::string &userName);
+           	   const std::string &userName);
   int addImageFace(std::shared_ptr <ImageFace> imageFace);
   int delImageFace(const std::string &faceToken);
   std::shared_ptr<ImageFace>  getImageFace(const std::string &faceToken);
+  std::string getUserName() {
+    return userName_;
+  }
   std::map<std::string, std::shared_ptr<ImageFace> > getImageFaces() {
     return imageFaces;
   } 
@@ -36,8 +35,7 @@ class UserFace {
 class GroupFace {
  public:
   GroupFace(const std::string &groupId);
-  int addUserFace(const std::string &userId, const std::string &userName);
-  int delUserFace(const std::string &userId);
+  int addUser(const std::string &userId, const std::string &userName);
   int delUser(const std::string &userId);
   std::shared_ptr<UserFace> getUserFace(const std::string &userId);
   std::map<std::string, std::shared_ptr<UserFace>> getUserFaces() {
@@ -84,8 +82,6 @@ class FaceAgent {
   private:
     std::map<std::string, std::shared_ptr<AppFace>> appFaces;
 };
-
-
 
 }
 #endif

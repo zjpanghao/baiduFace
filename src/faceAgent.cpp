@@ -46,7 +46,7 @@ std::shared_ptr<UserFace> GroupFace::getUserFace(const std::string &userId){
   return it->second;
 }
 
-int GroupFace::addUserFace(const std::string &userId, const std::string &userName) {
+int GroupFace::addUser(const std::string &userId, const std::string &userName) {
   if (userId == "") {
     return -1;
   }
@@ -157,7 +157,7 @@ int FaceAgent::delPersonFace(const PersonFace &face) {
   if (user == nullptr) {
       return -3;
   }
-  int rc = user->delImageFace(face.faceToken);
+  int rc = user->delImageFace(face.image->faceToken);
   return rc;
 }
 
@@ -182,18 +182,14 @@ int FaceAgent::addPersonFace(const PersonFace &face) {
 
   auto user = group->getUserFace(face.userId);
   if (user == nullptr) {
-    group->addUserFace(face.userId, face.userName);
+    group->addUser(face.userId, face.userName);
     user = group->getUserFace(face.userId);
     if (user == nullptr) {
       return -3;
     }
   }
 
-  std::shared_ptr<ImageFace> imageFace(new ImageFace());
-  imageFace->faceToken = face.faceToken;
-  imageFace->data = "";
-  imageFace->feature = face.feature;
-  int rc = user->addImageFace(imageFace);
+  int rc = user->addImageFace(face.image);
   return rc;
 }
 
@@ -212,8 +208,8 @@ void FaceAgent::getDefaultPersonFaces(std::list<PersonFace> &faces) {
         face.appName = DEFAULT_APP_NAME;
         face.groupId = it->first;
         face.userId = uit->first;
-        face.faceToken = iit->first;
-        face.feature = iit->second->feature; 
+        face.userName = uit->second->getUserName();
+        face.image = iit->second;
         faces.push_back(face);
       }
     }

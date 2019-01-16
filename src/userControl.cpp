@@ -84,7 +84,7 @@ void userFaceDelCb(struct evhttp_request *req, void *arg) {
   }
   std::string groupId = root["group_id"].asString();
   std::string userId = root["user_id"].asString();
-  std::string faceToken = root["fack_token"].asString();
+  std::string faceToken = root["face_token"].asString();
   rc = service.delUserFace(groupId, userId, faceToken);
   if (rc != 0) {
     delResult["error_code"] = "-1";

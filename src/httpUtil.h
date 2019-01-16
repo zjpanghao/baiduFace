@@ -18,8 +18,10 @@ void sendResponseResult(int errorCode,
     const std::map<std::string, vvalue> &paraMap,
     struct evhttp_request *&req, 
     evbuffer *&response); 
+
 struct HttpControl {
   std::string url;
   void (*cb)(evhttp_request *reg, void *arg);
 };
+
 #endif
