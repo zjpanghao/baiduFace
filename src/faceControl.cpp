@@ -181,7 +181,14 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "parse error", req, response);
     return;
   }
-  std::string faceToken = root["image"].asString();
+  if (root["image"].isNull() || root["image_type"].isNull()) {
+    rc = -4;
+    sendResponse(rc, "params error", req, response);
+    return;
+  }
+  
+  std::string faceData = root["image"].asString();
+  std::string imageType = root["image_type"].asString();
   std::stringstream num;
   num  << (root["max_user_num"].isNull() ? "1" : root["max_user_num"].asString());
   int faceNum;
@@ -190,12 +197,19 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   std::regex re(",");
   std::set<std::string> groupList(std::sregex_token_iterator(groupIds.begin(), groupIds.end(), re, -1),
             std::sregex_token_iterator());
-  LOG(INFO) << "faceToken:" << faceToken << "gid:" << groupIds;
+  LOG(INFO) << "faceToken:" << (faceData.length() < 64 ? faceData: faceData.substr(0,64))  << "gid:" << groupIds << "type" << imageType;
   std::vector<FaceSearchResult> resultList;
-  rc = service.search(groupList, faceToken, faceNum, resultList);
+  
+  if (imageType == "FACE_TOKEN") {
+    rc = service.search(groupList, faceData, faceNum, resultList);
+  } else if (imageType == "BASE64") {
+    rc = service.searchByImage64(groupList, faceData, faceNum, resultList);
+  } else {
+    rc = -5;
+  }
   if (rc != 0) {
     rc = -4;
-    sendResponse(rc, "no such facetoken", req, response);
+    sendResponse(rc, "search error", req, response);
     return;
   }
   faceResult["error_code"] = "0";

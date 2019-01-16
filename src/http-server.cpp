@@ -89,11 +89,16 @@ using namespace cv;
 
 char uri_root[512];
 
+struct HttpParam {
+  struct event_base *base;
+};
+
 void httpThread(void *param) {
   LOG(INFO) << "new Thread";
-  struct event_base *base = (struct event_base *)param;
+  struct event_base *base = ((struct HttpParam *)param)->base;
   event_base_dispatch(base);
 }
+
 void ev_server_start_multhread(int port, int nThread) {
   if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
 		return;
@@ -114,6 +119,12 @@ void ev_server_start_multhread(int port, int nThread) {
   	}
      /* The /dump URI will dump all requests to stdout and say 200 ok. */
     //evhttp_set_cb(http, "/identify", identifyCb, (void*)arg);
+    std::vector<HttpControl> controls;
+    initUserControl(controls);
+    initFaceControl(controls);
+    for (HttpControl control : controls) {
+      evhttp_set_cb(http, control.url.c_str(), control.cb, NULL);
+    }
     if (i == 0) {
       struct evhttp_bound_socket *bound;
       bound = evhttp_bind_socket_with_handle(http, "0.0.0.0", port);
@@ -124,8 +135,9 @@ void ev_server_start_multhread(int port, int nThread) {
     } else {
       evhttp_accept_socket(http, fd);
     }
-
-    std::thread t(httpThread, base);
+    HttpParam *param = new HttpParam();
+    param->base = base;
+    std::thread t(httpThread, param);
     t.detach();    
   }
 }

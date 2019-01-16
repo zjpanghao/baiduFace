@@ -113,7 +113,8 @@ void FaceAgent::getUserFaces(const std::string &appName,
     const std::string &groupName,
     const std::string &userName,
     std::map<std::string, std::shared_ptr<ImageFace>> &faceMap) {
-
+  RLockMethod md;
+  RWLockGuard guard(md, &lock_);
   auto app = getAppFace(appName);
   if (app == nullptr) {
     return;
@@ -129,6 +130,8 @@ void FaceAgent::getUserFaces(const std::string &appName,
 
 int FaceAgent::delPerson(const PersonFace &face) {
   std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
+  WLockMethod md;
+  RWLockGuard guard(md, &lock_);
   auto app = getAppFace(appName);
   if (app == nullptr) {
     return -1;
@@ -144,6 +147,8 @@ int FaceAgent::delPerson(const PersonFace &face) {
 
 int FaceAgent::delPersonFace(const PersonFace &face) {
   std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
+  WLockMethod md;
+  RWLockGuard guard(md, &lock_);
   auto app = getAppFace(appName);
   if (app == nullptr) {
     return -1;
@@ -163,6 +168,8 @@ int FaceAgent::delPersonFace(const PersonFace &face) {
 
 int FaceAgent::addPersonFace(const PersonFace &face) {
   std::string appName = (face.appName == "" ? DEFAULT_APP_NAME : face.appName);
+  WLockMethod md;
+  RWLockGuard guard(md, &lock_);
   auto app = getAppFace(appName);
   if (app == nullptr) {
     addAppFace(appName);
@@ -194,6 +201,8 @@ int FaceAgent::addPersonFace(const PersonFace &face) {
 }
 
 void FaceAgent::getDefaultPersonFaces(std::list<PersonFace> &faces) {
+  WLockMethod md;
+  RWLockGuard guard(md, &lock_);
   auto app = getAppFace(DEFAULT_APP_NAME);
   if (app == nullptr) {
     return;

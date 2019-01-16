@@ -186,6 +186,7 @@ void test_delUser(std::string gid, std::string uid) {
 }
 
 void ev_server_start(int);
+void ev_server_start_multhread(int, int);
 int main(int argc, char *argv[]) {
   initGlog(argv[0]);
 //  add_dir("221");
@@ -196,9 +197,13 @@ int main(int argc, char *argv[]) {
   }
   //test_delUser("227", "56");
   //test_quality("33.jpg");
-  ev_server_start(10556);
+  ev_server_start_multhread(10556, 1); 
+  //ev_server_start(10556);
   //test_attr("33.jpg");
   //add_image("33.jpg", "1");
   //test_search("3030.jpg");
+  while (1) {
+    sleep(10000);
+  }
   return 0;
 }
