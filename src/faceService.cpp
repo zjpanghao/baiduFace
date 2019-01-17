@@ -7,6 +7,7 @@
 #include <regex>
 #include <iterator>
 #include "cv_help.h"
+#include "util.h"
 #define MAX_FACE_TRACK 5
 using namespace cv;
 namespace kface {
@@ -19,6 +20,7 @@ FaceService::FaceService() {
 }
 
 int FaceService::initAgent() {
+  pthread_rwlock_init(&faceLock_, NULL);
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
   loadPersonFaces(faces);
@@ -123,7 +125,6 @@ int FaceService::addUserFace(const std::string &groupId,
     const std::string &userName,
     const std::string &dataBase64,
     std::string &faceToken){
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   int len = 0;
   std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
   PersonFace face;
@@ -148,6 +149,9 @@ int FaceService::addUserFace(const std::string &groupId,
   face.image.reset(new ImageFace());
   face.image->feature= featureBuffer->feature;
   face.image->faceToken = result.faceToken;
+  WLockMethod wlock;
+  RWLockGuard guard(wlock, &faceLock_);
+  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   int rc = faceAgent.addPersonFace(face);
   if (rc == 0) {
     flushFaces();
@@ -201,6 +205,8 @@ int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
     std::vector<FaceSearchResult> &result) {
 
   std::vector<PersonFace> top;
+  RLockMethod rlock;
+  RWLockGuard guard(rlock, &faceLock_);
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
   faceAgent.getDefaultPersonFaces(faces);
@@ -326,6 +332,8 @@ int FaceService::delUserFace(const std::string &groupId,
   face.userId = userId;
   face.image.reset(new ImageFace());
   face.image->faceToken = faceToken;
+  WLockMethod wlock;
+  RWLockGuard guard(wlock, &faceLock_);
   FaceAgent &agent = FaceAgent::getFaceAgent();
   rc = agent.delPersonFace(face);
   if (rc == 0) {
@@ -341,6 +349,8 @@ int FaceService::delUser(const std::string &groupId,
   face.appName = DEFAULT_APP_NAME;
   face.groupId = groupId;
   face.userId = userId;
+  WLockMethod wlock;
+  RWLockGuard guard(wlock, &faceLock_);
   FaceAgent &agent = FaceAgent::getFaceAgent();
   rc = agent.delPerson(face);
   if (rc == 0) {

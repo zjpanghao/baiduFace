@@ -7,7 +7,6 @@
 #include <list>
 #include "faceEntity.h"
 #include <pthread.h>
-#include <unistd.h>
 
 #define DEFAULT_APP_NAME "door"
 
@@ -64,38 +63,6 @@ class AppFace {
   std::map<std::string, std::shared_ptr<GroupFace> > groupFaces;
 };
 
-class LockMethod {
-  public:
-    virtual void lock(pthread_rwlock_t *lock) = 0;
-};
-
-class RLockMethod : public LockMethod {
-  void lock(pthread_rwlock_t *lock) override {
-    pthread_rwlock_rdlock(lock);
-  }
-};
-
-class WLockMethod : public LockMethod {
-  void lock(pthread_rwlock_t *lock) override {
-    pthread_rwlock_wrlock(lock);
-  }
-};
-
-class RWLockGuard {
-  public:
-    RWLockGuard(LockMethod &method, pthread_rwlock_t *lock):lock_(lock) {
-      method.lock(lock);
-    }
-
-    ~RWLockGuard() {
-      pthread_rwlock_unlock(lock_);
-    }
-
-  private:
-    pthread_rwlock_t *lock_;
-    bool locked_{false};
-};
-
 class FaceAgent {
  public:
   static FaceAgent& getFaceAgent();
@@ -106,7 +73,6 @@ class FaceAgent {
 
   private:
    FaceAgent() {
-     pthread_rwlock_init(&lock_, NULL);
    }
 
    void getUserFaces(const std::string &appName,
@@ -119,7 +85,6 @@ class FaceAgent {
    }
    int addAppFace(const std::string &appName);
    std::map<std::string, std::shared_ptr<AppFace>> appFaces;
-   pthread_rwlock_t lock_; 
 };
 
 }

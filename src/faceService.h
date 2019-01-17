@@ -167,7 +167,7 @@ class FaceService {
   FeatureBuffer  featureBuffers_;
   int initAgent(); 
   //std::shared_ptr<BaiduFaceApi>  api_{nullptr};
-  //pthread_rwlock_t agentLock; 
+  pthread_rwlock_t faceLock_; 
 };
 }
 
