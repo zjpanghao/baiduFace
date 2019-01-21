@@ -1,4 +1,5 @@
 #include "faceService.h"
+#include <sys/time.h>
 #include "image_base64.h"
 #include "md5.h"
 #include "faceAgent.h"
@@ -189,7 +190,12 @@ int FaceService::searchByImage64(const std::set<std::string> &groupIds,
     return -1;
   }
   const float *feature = nullptr;
+  struct timeval tv[2];
+  gettimeofday(&tv[0], NULL);
   int count = api->get_face_feature(imageBase64.c_str(), 1, feature);
+  gettimeofday(&tv[1], NULL);
+  LOG(INFO) << tv[0].tv_sec << "  " << tv[0].tv_usec;
+  LOG(INFO) << tv[1].tv_sec << "  " << tv[1].tv_usec;
   if (count != 512) {
     return -2;
   }
@@ -407,6 +413,7 @@ std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::getInitApi() {
   if (!api->is_auth()) {
     return nullptr;
   }
+  api->set_min_face_size(15);
   return api;
 }
 
