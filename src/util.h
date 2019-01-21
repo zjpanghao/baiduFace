@@ -40,6 +40,5 @@ class RWLockGuard {
 
   private:
     pthread_rwlock_t *lock_;
-    bool locked_{false};
 };
 #endif
