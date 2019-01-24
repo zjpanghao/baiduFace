@@ -44,8 +44,8 @@
 #include "util.h"
 
 namespace kface {
-
-void userFaceDelCb(struct evhttp_request *req, void *arg) {
+/* delete user face */
+static void userFaceDelCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   int len = 0;
   Json::Value root;
@@ -77,7 +77,6 @@ void userFaceDelCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "params error", req, response);
     return;
   }
-
   rc = service.delUserFace(groupId, userId, faceToken);
   if (rc != 0) {
     delResult["error_code"] = "-1";
@@ -91,7 +90,8 @@ void userFaceDelCb(struct evhttp_request *req, void *arg) {
   evhttp_send_reply(req, 200, "OK", response);
 }
 
-void userFaceAddCb(struct evhttp_request *req, void *arg) {
+/* add face to user*/
+static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   int len = 0;
   Json::Value root;
@@ -110,7 +110,6 @@ void userFaceAddCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "parse error", req, response);
     return;
   }
-
   std::string groupId;
   std::string userId;
   std::string userInfo;
@@ -125,7 +124,6 @@ void userFaceAddCb(struct evhttp_request *req, void *arg) {
     sendResponse(-1, "param error", req, response);
     return;
   }
-  
   int faceNum = 0;
   LOG(INFO) << "addUser :" << userId << "groupid:" << groupId << "imageLen:" << data.length(); 
   std::string faceToken;
@@ -145,7 +143,8 @@ void userFaceAddCb(struct evhttp_request *req, void *arg) {
   evhttp_send_reply(req, 200, "OK", response);
 }
 
-void userUpdateCb(struct evhttp_request *req, void *arg) {
+/* remove user's faces then add new face */
+static void userUpdateCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   int len = 0;
   Json::Value root;
@@ -164,7 +163,6 @@ void userUpdateCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "parse error", req, response);
     return;
   }
-
   std::string groupId;
   std::string userId;
   std::string userInfo;
@@ -179,7 +177,6 @@ void userUpdateCb(struct evhttp_request *req, void *arg) {
     sendResponse(-1, "param error", req, response);
     return;
   }
-  
   int faceNum = 0;
   LOG(INFO) << "updateUser :" << userId << "groupid:" << groupId << "imageLen:" << data.length(); 
   FaceUpdateResult updateResult;
@@ -188,10 +185,9 @@ void userUpdateCb(struct evhttp_request *req, void *arg) {
     sendResponse(-1, "update user failed", req, response);
     return;
   }
-  
   Json::Value result;
   result["face_token"] = updateResult.faceToken;
-	Json::Value location;
+  Json::Value location;
   location["left"] = updateResult.location.x;
   location["top"] = updateResult.location.y;
   location["width"] = updateResult.location.width;
@@ -205,7 +201,8 @@ void userUpdateCb(struct evhttp_request *req, void *arg) {
   evhttp_send_reply(req, 200, "OK", response);
 }
 
-void userDelCb(struct evhttp_request *req, void *arg) {
+/*delete user*/
+static void userDelCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   int len = 0;
   Json::Value root;
@@ -223,17 +220,14 @@ void userDelCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "parse error", req, response);
     return;
   }
-
   std::string groupId;
   std::string userId;
-
   getJsonString(root, "group_id", groupId);
   getJsonString(root, "user_id", userId);
   if (groupId.empty() || userId.empty()) {
     sendResponse(-1, "param error", req, response);
     return;
   }
-
   rc = service.delUser(groupId, userId);
   if (rc != 0) {
     sendResponse(-1, "del user failed", req, response);
@@ -247,11 +241,13 @@ void userDelCb(struct evhttp_request *req, void *arg) {
   evhttp_send_reply(req, 200, "OK", response);
 }
 
+/*register user interface*/
 void initUserControl(std::vector<HttpControl> &controls) {
   std::vector<HttpControl> controlList = {
     {"/face-api/v3/face/add", userFaceAddCb},
     {"/face-api/v3/face/delete", userFaceDelCb},
     {"/face-api/v3/user/delete", userDelCb},
+    /* remove user's faces then add new face */
     {"/face-api/v3/face/update", userUpdateCb},
   };
   for (HttpControl &control : controlList) {
