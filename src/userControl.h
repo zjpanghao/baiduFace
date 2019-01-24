@@ -7,6 +7,7 @@ namespace kface {
 void userFaceAddCb(struct evhttp_request *req, void *arg);
 void userFaceDelCb(struct evhttp_request *req, void *arg);
 void userDelCb(struct evhttp_request *req, void *arg);
+void userUpdateCb(struct evhttp_request *req, void *arg);
 void groupDelCb(struct evhttp_request *req, void *arg);
 void initUserControl(std::vector<HttpControl> &controls); 
 }

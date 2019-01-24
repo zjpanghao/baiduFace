@@ -1,5 +1,6 @@
 #include "faceService.h"
 #include <sys/time.h>
+#include <set>
 #include "image_base64.h"
 #include "md5.h"
 #include "faceAgent.h"
@@ -9,8 +10,13 @@
 #include <iterator>
 #include "cv_help.h"
 #include "util.h"
+#include "predis/redis_pool.h"
+#define BAIDU_FEATURE_KEY "baiduFeature"
 #define MAX_FACE_TRACK 5
-using namespace cv;
+using  cv::Mat;
+using cv::RotatedRect;
+using cv::Rect;
+
 namespace kface {
 FaceService& FaceService::getFaceService() {
   static FaceService faceService;
@@ -32,37 +38,20 @@ int FaceService::initAgent() {
   return 0;
 }
 
-int FaceService::init() {
-#if 0
-  if (api_ != nullptr) {
-    return 0;
-  }
-  LOG(INFO) << "faceService init";
-  api_.reset(new BaiduFaceApi());
-  int rc = api_->sdk_init(false);
-  if (rc != 0) {
-    return rc;
-  }
-  if (!api_->is_auth()) {
-    return -1;
-  }
-  api_->set_min_face_size(15);
-#endif
+int FaceService::init(std::shared_ptr<RedisPool> pool) {
   apiBuffers_.init(1);
+  featureBuffers_.reset(new FeatureBuffer(pool));
   initAgent();
   return 0;
 }
 
-/*
- * only detect one person
- */
 int FaceService::detect(const std::vector<unsigned char> &data,
     int faceNum,
     std::vector<FaceDetectResult> &detectResult) {
   int rc = 0;
   BaiduApiWrapper baidu(apiBuffers_);
   auto api = baidu.getApi();
-  if (api == nullptr) {
+  if (api == nullptr || data.size() < 10) {
     return -1;
   }
   api->clearTrackedFaces();
@@ -76,22 +65,23 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;
     result.trackInfo = info;
+    
+    /*calculate faceRect*/
     RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
     Rect rect = rRect.boundingRect();
     int x = rect.x;
     int y = rect.y;
     if (x < 0 || y < 0 || rect.width + x > m.cols || rect.height + y > m.rows) { 
-		LOG(ERROR) << "Error face Rect detect (x)" << x <<"(y) "<< y;
-		return -3;
-	};
-   
+  		LOG(ERROR) << "Error face Rect detect (x)" << x <<"(y) "<< y;
+  		return -3;
+	  }
     result.location.x = x;
     result.location.y = y;
-
     result.location.width= rect.width;
     result.location.height= rect.height;
     result.location.rotation = rRect.angle;
     
+    /*getfeature and save*/
     Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
     std::vector<unsigned char> childImage;
     imencode(".jpg", child, childImage);  
@@ -106,59 +96,11 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     result.attr = getAttr(&childImage[0], childImage.size(), api);
     result.quality = faceQuality(&childImage[0], childImage.size(), api);
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
-	  featureBuffers_.addBuffer(result.faceToken, buffer);
+	  featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
-	/*
-	** 记录图片信息
-	*/
-    //{
-    //  std::string name = "image/" + result.faceToken + ".jpg";
-    //  imwrite(name.c_str(), child);
-    //}
   } 
 
   api->clearTrackedFaces();
-  return rc;
-}
-
-int FaceService::addUserFace(const std::string &groupId,
-    const std::string &userId,
-    const std::string &userName,
-    const std::string &dataBase64,
-    std::string &faceToken){
-  int len = 0;
-  std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
-  PersonFace face;
-  face.appName = DEFAULT_APP_NAME;
-  face.groupId = groupId;
-  face.userId = userId;
-  face.userName = userName;
-  const float *feature = nullptr;
-  std::vector<unsigned char> mdata(&data[0], &data[0] + len);
-  std::vector<FaceDetectResult> results;
-  if (0 != detect(mdata, 1, results)) {
-    return -1;
-  }
-  if (results.size() != 1) {
-    return -2;
-  }
-  FaceDetectResult &result = results[0];
-  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_.getBuffer(result.faceToken);
-  if (featureBuffer == nullptr) {
-    return -3;
-  }
-  face.image.reset(new ImageFace());
-  face.image->feature= featureBuffer->feature;
-  face.image->faceToken = result.faceToken;
-  WLockMethod wlock;
-  RWLockGuard guard(wlock, &faceLock_);
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
-  int rc = faceAgent.addPersonFace(face);
-  if (rc == 0) {
-    flushFaces();
-  }
-  faceToken = face.image->faceToken;
-  LOG(INFO) << "add face token:" << faceToken << "rc:" << rc;
   return rc;
 }
 
@@ -167,7 +109,7 @@ int FaceService::search(const std::set<std::string> &groupIds,
                         int num,
                         std::vector<FaceSearchResult> &searchResult) {
 
-  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_.getBuffer(faceToken);
+  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
   if (featureBuffer == nullptr) {
     return -1;
   }
@@ -179,10 +121,77 @@ int FaceService::search(const std::set<std::string> &groupIds,
   return search(api, groupIds, featureBuffer->feature, num, searchResult);
 }
 
+int FaceService::match(const std::string &faceToken,                   
+                         const std::string &faceTokenCompare,              
+                         float &score) {
+
+  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
+  std::shared_ptr<FaceBuffer> featureBufferCompare = featureBuffers_->getBuffer(faceTokenCompare);
+  if (featureBuffer == nullptr || featureBufferCompare == nullptr) {
+    return -1;
+  }
+  BaiduApiWrapper baidu(apiBuffers_);
+  auto api = baidu.getApi();
+  if (api == nullptr) {
+    return -2;
+  }
+  score = api->compare_feature(featureBuffer->feature, featureBufferCompare->feature);
+  return 0;
+}
+
+ int FaceService::matchImageToken(const std::string &image64,                   
+                                         const std::string &faceToken,              
+                                         float &score) {
+   BaiduApiWrapper baidu(apiBuffers_);
+   auto api = baidu.getApi();
+   if (api == nullptr) {
+     return -2;
+   }
+   const float *feature = NULL;
+   int count = api->get_face_feature(image64.c_str(), 1, feature);
+   if (count != 512) {
+     return -2;
+   }
+   std::vector<float> data;
+   data.assign(feature, feature + 512);
+   std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
+   if (featureBuffer == nullptr) {
+     return -1;
+   }
+   score = api->compare_feature(featureBuffer->feature, data);
+   return 0;
+ }
+
+int FaceService::matchImage(const std::string &image64,                   
+                                 const std::string &image64Compare,              
+                                 float &score) {
+ BaiduApiWrapper baidu(apiBuffers_);
+ auto api = baidu.getApi();
+ if (api == nullptr) {
+   return -2;
+ }
+ const float *feature = NULL;
+ int count = api->get_face_feature(image64.c_str(), 1, feature);
+ if (count != 512) {
+   return -2;
+ }
+ std::vector<float> data;
+ data.assign(feature, feature + 512);
+
+ count = api->get_face_feature(image64Compare.c_str(), 1, feature);
+ if (count != 512) {
+   return -2;
+ }
+ std::vector<float> dataCompare;
+ dataCompare.assign(feature, feature + 512); 
+ score = api->compare_feature(dataCompare, data);
+ return 0;
+}
+
 int FaceService::searchByImage64(const std::set<std::string> &groupIds, 
-                        const std::string &imageBase64, 
-                        int num,
-                        std::vector<FaceSearchResult> &searchResult) {
+                                        const std::string &imageBase64, 
+                                        int num,
+                                        std::vector<FaceSearchResult> &searchResult) {
 
   BaiduApiWrapper baidu(apiBuffers_);
   auto api = baidu.getApi();
@@ -217,6 +226,7 @@ int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
   std::list<PersonFace> faces;
   faceAgent.getDefaultPersonFaces(faces);
 
+  /*get the highest mark of each userId*/
   std::map<std::string, float> userScore;
   for (auto &face : faces) {
     if (groupIds.count(face.groupId) == 0) {
@@ -229,10 +239,13 @@ int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
     }
   }
 
+  /* find the top num marks*/
   std::vector<std::pair<std::string,float>>  topPair(userScore.begin(), userScore.end());
-  std::partial_sort(topPair.begin(), num > topPair.size() ? topPair.end() : topPair.begin() + num, topPair.end(),
-      [](const std::pair<std::string, float> &a, const std::pair<std::string, float>  &b) {
-      return a.second > b.second;});
+  std::partial_sort(topPair.begin(), 
+                    num > topPair.size() ? topPair.end() : topPair.begin() + num, 
+                    topPair.end(),
+                    [](const std::pair<std::string, float> &a, const std::pair<std::string, float>  &b) {
+                    return a.second > b.second;});
   for (auto &p : topPair) {
     if (--num < 0) {
       return 0;
@@ -328,6 +341,103 @@ std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data
   return value;
 }
 
+int FaceService::addUserFace(const std::string &groupId,
+    const std::string &userId,
+    const std::string &userName,
+    const std::string &dataBase64,
+    std::string &faceToken){
+  int len = 0;
+  std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
+  if (len < 10) {
+    return -1;
+  }
+  PersonFace face;
+  face.appName = DEFAULT_APP_NAME;
+  face.groupId = groupId;
+  face.userId = userId;
+  face.userName = userName;
+  const float *feature = nullptr;
+  std::vector<unsigned char> mdata(&data[0], &data[0] + len);
+  std::vector<FaceDetectResult> results;
+  if (0 != detect(mdata, 1, results)) {
+    return -1;
+  }
+  if (results.size() != 1) {
+    return -2;
+  }
+  
+  FaceDetectResult &result = results[0];
+  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(result.faceToken);
+  if (featureBuffer == nullptr) {
+    return -3;
+  }
+  face.image.reset(new ImageFace());
+  face.image->feature= featureBuffer->feature;
+  face.image->faceToken = result.faceToken;
+  WLockMethod wlock;
+  RWLockGuard guard(wlock, &faceLock_);
+  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
+  int rc = faceAgent.addPersonFace(face);
+  if (rc == 0) {
+    flushFaces();
+  }
+  faceToken = face.image->faceToken;
+  LOG(INFO) << "add face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
+  return rc;
+}
+
+int FaceService::updateUserFace(const std::string &groupId,
+    const std::string &userId,
+    const std::string &userName,
+    const std::string &dataBase64,
+    FaceUpdateResult &updateResult) {
+  int len = 0;
+  updateResult.faceToken = "";
+  std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
+  if (len < 10) {
+    return -1;
+  }
+  PersonFace face;
+  face.appName = DEFAULT_APP_NAME;
+  face.groupId = groupId;
+  face.userId = userId;
+  face.userName = userName;
+  const float *feature = nullptr;
+  std::vector<unsigned char> mdata(&data[0], &data[0] + len);
+  std::vector<FaceDetectResult> results;
+  if (0 != detect(mdata, 1, results)) {
+    return -1;
+  }
+  if (results.size() != 1) {
+    return -2;
+  }
+  
+  FaceDetectResult &result = results[0];
+  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(result.faceToken);
+  if (featureBuffer == nullptr) {
+    return -3;
+  }
+  face.image.reset(new ImageFace());
+  face.image->feature= featureBuffer->feature;
+  face.image->faceToken = result.faceToken;
+  WLockMethod wlock;
+  RWLockGuard guard(wlock, &faceLock_);
+  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
+  int rc = faceAgent.delPerson(face);
+  if (rc != 0) {
+    LOG(ERROR) << "delete person :" << face.userId << " error";
+    return - 4;
+  }
+  rc = faceAgent.addPersonFace(face);
+  if (rc == 0) {
+    flushFaces();
+  }
+  updateResult.faceToken = face.image->faceToken;
+  updateResult.location = result.location;
+  LOG(INFO) << "add face token:" << face.image->faceToken << "userId" << userId <<  "rc:" << rc;
+  return rc;
+}
+
 int FaceService::delUserFace(const std::string &groupId,
     const std::string &userId,
     const std::string &faceToken) {
@@ -345,6 +455,7 @@ int FaceService::delUserFace(const std::string &groupId,
   if (rc == 0) {
     flushFaces();
   }
+  LOG(INFO) << "del face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
   return rc;
 }
 
@@ -362,6 +473,7 @@ int FaceService::delUser(const std::string &groupId,
   if (rc == 0) {
     flushFaces();
   }
+  LOG(INFO) << "del user  userId" << userId <<  "rc:" << rc;
   return rc;
 }
 
@@ -374,6 +486,25 @@ int FeatureBuffer::getBufferIndex() {
 }
 
 std::shared_ptr<FaceBuffer> FeatureBuffer::getBuffer(const std::string &faceToken) {
+  RedisControlGuard guard(redisPool_.get());
+  std::shared_ptr<RedisControl> control = guard.GetControl();
+  if (control == nullptr) {
+    return nullptr;
+  }
+  std::string featureBase64;
+  control->GetHashValue(BAIDU_FEATURE_KEY, faceToken, &featureBase64);
+  if (featureBase64.empty()) {
+    return nullptr;
+  }
+  int len = 0;
+  std::string data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
+  if (len != 512 * sizeof(float)) {
+    return nullptr;
+  }
+  std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
+  buffer->feature.assign((float*)&data[0], (float*)&data[0] + 512);
+  return buffer;
+  #if 0
   int inx = getBufferIndex();
   std::lock_guard<std::mutex> guard(lock_);
   auto it = faceBuffers[inx].find(faceToken);
@@ -381,9 +512,20 @@ std::shared_ptr<FaceBuffer> FeatureBuffer::getBuffer(const std::string &faceToke
     return nullptr;
   }
   return it->second;
+  #endif
 }
 
 void FeatureBuffer::addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer) {
+
+  RedisControlGuard guard(redisPool_.get());
+  std::shared_ptr<RedisControl> control = guard.GetControl();
+  if (control == nullptr) {
+    return;
+  }
+  
+  std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
+  control->SetHashValue(BAIDU_FEATURE_KEY, faceToken, featureBase64);
+#if 0
   int inx = getBufferIndex();
   int old = 1 - inx;
   std::lock_guard<std::mutex> guard(lock_);
@@ -392,6 +534,7 @@ void FeatureBuffer::addBuffer(const std::string &faceToken, std::shared_ptr<Face
     faceBuffers[old].clear();
   }
   faceBuffers[inx].insert(std::make_pair(faceToken, buffer));
+  #endif
 }
 
 int BaiduFaceApiBuffer::init(int bufferNums) {

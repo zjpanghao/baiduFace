@@ -1,6 +1,7 @@
 #ifndef INCLUDE_RW_LOCK_H
 #define INCLUDE_RW_LOCK_H
 #include <glog/logging.h>
+#include <json/json.h>
 class LockMethod {
   public:
     virtual void lock(pthread_rwlock_t *lock) = 0;
@@ -41,4 +42,16 @@ class RWLockGuard {
   private:
     pthread_rwlock_t *lock_;
 };
+
+
+template<class E>
+void getJsonString(const Json::Value &value, const std::string &key, E &t) {
+  if (value.isNull() || !value[key].isString()) {
+    return;
+  }
+  std::stringstream ss;
+  ss << value[key].asString();
+  ss >> t;
+}
+
 #endif

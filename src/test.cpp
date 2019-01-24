@@ -157,15 +157,18 @@ void test_attr(const char *fname) {
   }
   std::string out_buf;
   int buf_len = ImageBuf::get_buf(fname, out_buf);
+  #if 0
   auto ft =  service.getAttr((const unsigned char*)&out_buf[0], buf_len);
   if (ft != nullptr) {
     printf("%d\n", ft->age);
     printf("%d\n", ft->gender);
     printf("%.2f\n", ft->genderConfidence);
   }
+  #endif
 }
 
 void test_quality(const char *fname) {
+#if 0
   FaceService &service = FaceService::getFaceService();
   if (0 !=service.init()) {
     return;
@@ -175,6 +178,7 @@ void test_quality(const char *fname) {
   auto ft =  service.faceQuality((const unsigned char*)&out_buf[0], buf_len);
   if (ft != nullptr) {
   }
+ #endif
 }
 
 void test_delUser(std::string gid, std::string uid) {

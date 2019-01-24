@@ -6,8 +6,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-
-#include <sys/stat.h>
 #include <sys/socket.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -41,134 +39,126 @@
 #include <regex>
 #include "faceAgent.h"
 #include "faceService.h"
+#include "util.h"
 #include "httpUtil.h"
 
 namespace kface {
-	void faceDetectCb(struct evhttp_request *req, void *arg) {
-	  const char *cmdtype;
-	  struct evkeyvalq *headers;
-	  struct evkeyval *header;
-	  struct evbuffer *buf;
-	  int rc = 0;
-	  int len = 0;
-	  std::vector<FaceDetectResult> result;
-	  auto it = result.begin();
-	  Json::Value root;
-	  Json::Value faceResult;
-	  Json::Value items;
-	  Json::Reader reader;
-	  int decodeLen = 0;
-	  FaceService &service = FaceService::getFaceService(); 
-	  std::string decodeData; 
-	  std::vector<unsigned char> cdata;
-	  evbuffer *response = evbuffer_new();
-	  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-		rc = -1;
-		sendResponse(rc, "method not support", req, response);
-		return;
-	  }
-	
-	  std::string body = getBodyStr(req);
-	  if (!reader.parse(body, root)) {
-		rc = -3;
-		sendResponse(rc, "parse error", req, response);
-		return;
-	  }
-	  std::string data = root["image"].isNull() ? "" : root["image"].asString();
-	  std::stringstream num;
-	  int faceNum = 0;
-	  num << (root["max_face_num"].isNull() ? "1" : root["max_face_num"].asString());
-	  num >> faceNum;
-	  decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
-	  cdata.assign(&decodeData[0], &decodeData[0] + decodeLen);
-	  
-	  rc = service.detect(cdata, faceNum, result);
-	  if (rc != 0) {
-		rc = -4;
-		result.clear();
-	  }
-	  it = result.begin();
-	  faceResult["error_code"] = "0";
-	  faceResult["error_msg"] = "SUCCESS";
-	  {
-		Json::Value content;
-		while (it != result.end()) {
-		  Json::Value item;
-		  item["face_token"] = it->faceToken;
-		  Json::Value faceType;
-		  faceType["probability"] = 1;
-		  faceType["type"] = "human";
-		  item["face_type"] = faceType;
-		  if (it->attr != nullptr) {
-			Json::Value gender;
-			gender["type"] = it->attr->gender == 1 ? "male" : "female";
-			gender["probability"] = it->attr->genderConfidence;
-			item["gender"] = gender;
-			item["age"] = it->attr->age;
-			Json::Value glasses;
-			glasses["type"] = it->attr->glasses ? "WITH" : "NONE";
-			item["glasses"] = glasses;
-			Json::Value expression;
-			expression["type"] = it->attr->expression ? "smile" : "none";
-			item["expression"] = expression;
-		  }
-		  item["face_probability"] =  it->trackInfo.score;
-		  Json::Value location;
-		  location["left"] = it->location.x;
-		  location["top"] = it->location.y;
-		  location["width"] = it->location.width;
-		  location["height"] = it->location.height;
-		  location["rotation"] = it->location.rotation;
-		  item["location"] = location;
-		  if (it->quality != nullptr) {
-			Json::Value quality;
-			quality["illumination"] = it->quality->illumination;
-			quality["blur"] = it->quality->blur;
-			quality["completeness"] = it->quality->completeness;
-			Json::Value occl;
-			occl["left_eye"] = (int)it->quality->occlution.leftEye;
-			occl["right_eye"] = (int)it->quality->occlution.rightEye;
-			occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
-			occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
-			occl["mouth"] = (int)it->quality->occlution.mouth;
-			occl["nose"] = (float)it->quality->occlution.nose;
-			occl["chin_contour"] = (int)it->quality->occlution.chinContour;
-			quality["occlusion"] = occl;
-			quality["completeness"] = it->quality->completeness;
-			item["quality"] = quality;
-		  }
-	
-		  Json::Value headPose;
-		  int inx = 0;
-		  std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
-		  for (float v : it->trackInfo.headPose) {
-			headPose[angleNames[inx++]] = v;
-		  }
-		  item["angle"] = headPose;
-		  items.append(item);
-		  it++;
-		}
-		content["face_num"] = (int)result.size();
-		content["face_list"] = items;
-		faceResult["result"] = content;
-	  }
-	  if (result.size() > 0) {
-		LOG(INFO) << faceResult.toStyledString();
-	  }
-	  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
-	  evhttp_send_reply(req, 200, "OK", response);
-	}
-
-
-void faceIdentifyCb(struct evhttp_request *req, void *arg) {
+void faceDetectCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
-  int len = 0;
+  std::vector<FaceDetectResult> result;
   Json::Value root;
   Json::Value faceResult;
   Json::Value items;
   Json::Reader reader;
+ 
+  evbuffer *response = evbuffer_new();
+  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
+  	rc = -1;
+  	sendResponse(rc, "method not support", req, response);
+  	return;
+  }
+
+  std::string body = getBodyStr(req);
+  if (!reader.parse(body, root)) {
+  	rc = -3;
+  	sendResponse(rc, "parse error", req, response);
+	  return;
+  }
+  std::string data;
+  getJsonString(root, "image", data);
+  if (data.empty()) {
+    rc = -4;
+  	sendResponse(rc, "image error", req, response);
+	  return;
+  }
+  int faceNum = 1;
+  getJsonString(root, "max_face_num", faceNum);
+  std::string decodeData;
   int decodeLen = 0;
+  decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
+  std::vector<unsigned char> cdata;
+  cdata.assign(&decodeData[0], &decodeData[0] + decodeLen);
   FaceService &service = FaceService::getFaceService(); 
+  rc = service.detect(cdata, faceNum, result);
+  if (rc != 0) {
+  	rc = -4;
+  	result.clear();
+  }
+  
+  faceResult["error_code"] = "0";
+  faceResult["error_msg"] = "SUCCESS";
+	Json::Value content;
+	auto it = result.begin();
+	while (it != result.end()) {
+	  Json::Value item;
+	  item["face_token"] = it->faceToken;
+	  Json::Value faceType;
+	  faceType["probability"] = 1;
+	  faceType["type"] = "human";
+	  item["face_type"] = faceType;
+	  if (it->attr != nullptr) {
+  		Json::Value gender;
+  		gender["type"] = it->attr->gender == 1 ? "male" : "female";
+  		gender["probability"] = it->attr->genderConfidence;
+  		item["gender"] = gender;
+  		item["age"] = it->attr->age;
+  		Json::Value glasses;
+  		glasses["type"] = it->attr->glasses ? "WITH" : "NONE";
+  		item["glasses"] = glasses;
+  		Json::Value expression;
+  		expression["type"] = it->attr->expression ? "smile" : "none";
+  		item["expression"] = expression;
+	  }
+	  item["face_probability"] =  it->trackInfo.score;
+	  Json::Value location;
+	  location["left"] = it->location.x;
+	  location["top"] = it->location.y;
+	  location["width"] = it->location.width;
+	  location["height"] = it->location.height;
+	  location["rotation"] = it->location.rotation;
+	  item["location"] = location;
+	  if (it->quality != nullptr) {
+  		Json::Value quality;
+  		quality["illumination"] = it->quality->illumination;
+  		quality["blur"] = it->quality->blur;
+  		quality["completeness"] = it->quality->completeness;
+  		Json::Value occl;
+  		occl["left_eye"] = (int)it->quality->occlution.leftEye;
+  		occl["right_eye"] = (int)it->quality->occlution.rightEye;
+  		occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
+  		occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
+  		occl["mouth"] = (int)it->quality->occlution.mouth;
+  		occl["nose"] = (float)it->quality->occlution.nose;
+  		occl["chin_contour"] = (int)it->quality->occlution.chinContour;
+  		quality["occlusion"] = occl;
+  		quality["completeness"] = it->quality->completeness;
+  		item["quality"] = quality;
+	  }
+
+	  Json::Value headPose;
+	  int inx = 0;
+	  std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
+	  for (float v : it->trackInfo.headPose) {
+		  headPose[angleNames[inx++]] = v;
+	  }
+	  item["angle"] = headPose;
+	  items.append(item);
+	  it++;
+	}
+	content["face_num"] = (int)result.size();
+	content["face_list"] = items;
+	faceResult["result"] = content;
+  if (result.size() > 0) {
+	  LOG(INFO) << faceResult.toStyledString();
+  }
+  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
+  evhttp_send_reply(req, 200, "OK", response);
+}
+
+void faceIdentifyCb(struct evhttp_request *req, void *arg) {
+  int rc = 0;
+  Json::Value root;
+  int decodeLen = 0;
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
     rc = -1;
@@ -176,30 +166,33 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     return;
   }
   std::string body = getBodyStr(req);
+  Json::Reader reader;
   if (!reader.parse(body, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
-  if (root["image"].isNull() || root["image_type"].isNull()) {
+  std::string faceData;
+  getJsonString(root, "image", faceData);
+  std::string imageType;
+  getJsonString(root, "image_type", imageType);
+  int faceNum;
+  getJsonString(root, "max_user_num", faceNum);
+  std::string groupIds;
+  getJsonString(root, "group_id_list", groupIds);
+  if (faceData.empty() || imageType.empty() || groupIds.empty()) {
     rc = -4;
     sendResponse(rc, "params error", req, response);
     return;
   }
   
-  std::string faceData = root["image"].asString();
-  std::string imageType = root["image_type"].asString();
-  std::stringstream num;
-  num  << (root["max_user_num"].isNull() ? "1" : root["max_user_num"].asString());
-  int faceNum;
-  num >> faceNum;
-  std::string groupIds = root["group_id_list"].asString();
   std::regex re(",");
   std::set<std::string> groupList(std::sregex_token_iterator(groupIds.begin(), groupIds.end(), re, -1),
             std::sregex_token_iterator());
   LOG(INFO) << "faceToken:" << (faceData.length() < 64 ? faceData: faceData.substr(0,64))  << "gid:" << groupIds << "type" << imageType;
+
   std::vector<FaceSearchResult> resultList;
-  
+  FaceService &service = FaceService::getFaceService(); 
   if (imageType == "FACE_TOKEN") {
     rc = service.search(groupList, faceData, faceNum, resultList);
   } else if (imageType == "BASE64") {
@@ -207,12 +200,15 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   } else {
     rc = -5;
   }
+  
   if (rc != 0) {
     rc = -4;
     sendResponse(rc, "search error", req, response);
     return;
   }
+  Json::Value faceResult;
   faceResult["error_code"] = "0";
+  Json::Value items;
   for (FaceSearchResult &result : resultList) {
     Json::Value content;
     Json::Value item;
@@ -233,14 +229,74 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   LOG(INFO) << faceResult.toStyledString();
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
-done:
-  ;
 }
+
+static void faceMatchCb(struct evhttp_request *req, void *arg) {
+  int rc = 0;
+  Json::Value root;
+  int decodeLen = 0;
+  evbuffer *response = evbuffer_new();
+  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
+    rc = -1;
+    sendResponse(rc, "method not support", req, response);
+    return;
+  }
+  std::string body = getBodyStr(req);
+  Json::Reader reader;
+  if (!reader.parse(body, root) || !root.isArray() || root.size() != 2) {
+    rc = -3;
+    sendResponse(rc, "parse error", req, response);
+    return;
+  }
+  std::string faceData[2];
+  std::string imageType[2];
+  for (int i = 0; i < 2; i++) {
+    getJsonString(root[i], "image", faceData[i]);
+    getJsonString(root[i], "image_type", imageType[i]);
+    if (faceData[i].empty() || imageType[i].empty()) {
+      rc = -4;
+      sendResponse(rc, "params error", req, response);
+      return;
+    }
+  }
+ 
+  std::vector<FaceSearchResult> resultList;
+  FaceService &service = FaceService::getFaceService(); 
+  float score;
+  if (imageType[0] == "FACE_TOKEN" && imageType[1] == "FACE_TOKEN") {
+    rc = service.match(faceData[0], faceData[1], score);
+  } else if (imageType[0] == "BASE64" && imageType[1] == "BASE64") {
+    rc = service.matchImage(faceData[0], faceData[1], score);
+  } else if (imageType[0] == "BASE64" && imageType[1] == "FACE_TOKEN") {
+    rc = service.matchImageToken(faceData[0], faceData[1], score);
+  } else if (imageType[1] == "BASE64" && imageType[0] == "FACE_TOKEN") {
+    rc = service.matchImageToken(faceData[1], faceData[0], score);
+  } else {
+    rc = -9;
+  }
+  
+  if (rc != 0) {
+    rc = -4;
+    sendResponse(rc, "match error", req, response);
+    return;
+  }
+  Json::Value faceResult;
+  faceResult["error_code"] = "0";
+  faceResult["error_msg"] = "SUCCESS";
+  faceResult["score"] = score;
+ 
+  LOG(INFO) << faceResult.toStyledString();
+  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
+  evhttp_send_reply(req, 200, "OK", response);
+}
+
+
 
 void initFaceControl(std::vector<HttpControl> &controls) {
   std::vector<HttpControl> controlList = {
     {"/face-api/v3/face/detect", faceDetectCb},
-    {"/face-api/v3/face/identify", faceIdentifyCb}
+    {"/face-api/v3/face/identify", faceIdentifyCb},
+    {"/face-api/v3/face/match", faceMatchCb}
   };
   for (HttpControl &control : controlList) {
     controls.push_back(control);

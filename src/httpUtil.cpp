@@ -80,7 +80,6 @@
 #include "faceAgent.h"
 #include "faceService.h"
 
-
 void sendResponse(int errorCode, 
     std::string msg,  
     struct evhttp_request *&req, 
@@ -92,6 +91,7 @@ void sendResponse(int errorCode,
   root["error_msg"] = msg;
   std::string s = root.toStyledString();
   evbuffer_add_printf(response, "%s", s.c_str());
+  LOG(ERROR) << s;
   evhttp_send_reply(req, 200, "OK", response);
 }
 
