@@ -53,23 +53,23 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
  
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-  	rc = -1;
-  	sendResponse(rc, "method not support", req, response);
-  	return;
+    rc = -1;
+    sendResponse(rc, "method not support", req, response);
+    return;
   }
 
   std::string body = getBodyStr(req);
   if (!reader.parse(body, root)) {
-  	rc = -3;
-  	sendResponse(rc, "parse error", req, response);
-	  return;
+    rc = -3;
+    sendResponse(rc, "parse error", req, response);
+    return;
   }
   std::string data;
   getJsonString(root, "image", data);
   if (data.empty()) {
     rc = -4;
-  	sendResponse(rc, "image error", req, response);
-	  return;
+    sendResponse(rc, "image error", req, response);
+    return;
   }
   int faceNum = 1;
   getJsonString(root, "max_face_num", faceNum);
@@ -81,75 +81,75 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   FaceService &service = FaceService::getFaceService(); 
   rc = service.detect(cdata, faceNum, result);
   if (rc != 0) {
-  	rc = -4;
-  	result.clear();
+    rc = -4;
+    result.clear();
   }
   
   faceResult["error_code"] = "0";
   faceResult["error_msg"] = "SUCCESS";
-	Json::Value content;
-	auto it = result.begin();
-	while (it != result.end()) {
-	  Json::Value item;
-	  item["face_token"] = it->faceToken;
-	  Json::Value faceType;
-	  faceType["probability"] = 1;
-	  faceType["type"] = "human";
-	  item["face_type"] = faceType;
-	  if (it->attr != nullptr) {
-  		Json::Value gender;
-  		gender["type"] = it->attr->gender == 1 ? "male" : "female";
-  		gender["probability"] = it->attr->genderConfidence;
-  		item["gender"] = gender;
-  		item["age"] = it->attr->age;
-  		Json::Value glasses;
-  		glasses["type"] = it->attr->glasses ? "WITH" : "NONE";
-  		item["glasses"] = glasses;
-  		Json::Value expression;
-  		expression["type"] = it->attr->expression ? "smile" : "none";
-  		item["expression"] = expression;
-	  }
-	  item["face_probability"] =  it->trackInfo.score;
-	  Json::Value location;
-	  location["left"] = it->location.x;
-	  location["top"] = it->location.y;
-	  location["width"] = it->location.width;
-	  location["height"] = it->location.height;
-	  location["rotation"] = it->location.rotation;
-	  item["location"] = location;
-	  if (it->quality != nullptr) {
-  		Json::Value quality;
-  		quality["illumination"] = it->quality->illumination;
-  		quality["blur"] = it->quality->blur;
-  		quality["completeness"] = it->quality->completeness;
-  		Json::Value occl;
-  		occl["left_eye"] = (int)it->quality->occlution.leftEye;
-  		occl["right_eye"] = (int)it->quality->occlution.rightEye;
-  		occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
-  		occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
-  		occl["mouth"] = (int)it->quality->occlution.mouth;
-  		occl["nose"] = (float)it->quality->occlution.nose;
-  		occl["chin_contour"] = (int)it->quality->occlution.chinContour;
-  		quality["occlusion"] = occl;
-  		quality["completeness"] = it->quality->completeness;
-  		item["quality"] = quality;
-	  }
+  Json::Value content;
+  auto it = result.begin();
+  while (it != result.end()) {
+    Json::Value item;
+    item["face_token"] = it->faceToken;
+    Json::Value faceType;
+    faceType["probability"] = 1;
+    faceType["type"] = "human";
+    item["face_type"] = faceType;
+    if (it->attr != nullptr) {
+      Json::Value gender;
+      gender["type"] = it->attr->gender == 1 ? "male" : "female";
+      gender["probability"] = it->attr->genderConfidence;
+      item["gender"] = gender;
+      item["age"] = it->attr->age;
+      Json::Value glasses;
+      glasses["type"] = it->attr->glasses ? "WITH" : "NONE";
+      item["glasses"] = glasses;
+      Json::Value expression;
+      expression["type"] = it->attr->expression ? "smile" : "none";
+      item["expression"] = expression;
+    }
+    item["face_probability"] =  it->trackInfo.score;
+    Json::Value location;
+    location["left"] = it->location.x;
+    location["top"] = it->location.y;
+    location["width"] = it->location.width;
+    location["height"] = it->location.height;
+    location["rotation"] = it->location.rotation;
+    item["location"] = location;
+    if (it->quality != nullptr) {
+      Json::Value quality;
+      quality["illumination"] = it->quality->illumination;
+      quality["blur"] = it->quality->blur;
+      quality["completeness"] = it->quality->completeness;
+      Json::Value occl;
+      occl["left_eye"] = (int)it->quality->occlution.leftEye;
+      occl["right_eye"] = (int)it->quality->occlution.rightEye;
+      occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
+      occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
+      occl["mouth"] = (int)it->quality->occlution.mouth;
+      occl["nose"] = (float)it->quality->occlution.nose;
+      occl["chin_contour"] = (int)it->quality->occlution.chinContour;
+      quality["occlusion"] = occl;
+      quality["completeness"] = it->quality->completeness;
+      item["quality"] = quality;
+    }
 
-	  Json::Value headPose;
-	  int inx = 0;
-	  std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
-	  for (float v : it->trackInfo.headPose) {
-		  headPose[angleNames[inx++]] = v;
-	  }
-	  item["angle"] = headPose;
-	  items.append(item);
-	  it++;
-	}
-	content["face_num"] = (int)result.size();
-	content["face_list"] = items;
-	faceResult["result"] = content;
+    Json::Value headPose;
+    int inx = 0;
+    std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
+    for (float v : it->trackInfo.headPose) {
+      headPose[angleNames[inx++]] = v;
+    }
+    item["angle"] = headPose;
+    items.append(item);
+    it++;
+  }
+  content["face_num"] = (int)result.size();
+  content["face_list"] = items;
+  faceResult["result"] = content;
   if (result.size() > 0) {
-	  LOG(INFO) << faceResult.toStyledString();
+    LOG(INFO) << faceResult.toStyledString();
   }
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
@@ -188,7 +188,7 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   
   std::regex re(",");
   std::set<std::string> groupList(std::sregex_token_iterator(groupIds.begin(), groupIds.end(), re, -1),
-            std::sregex_token_iterator());
+      std::sregex_token_iterator());
   LOG(INFO) << "faceToken:" << (faceData.length() < 64 ? faceData: faceData.substr(0,64))  << "gid:" << groupIds << "type" << imageType;
 
   std::vector<FaceSearchResult> resultList;

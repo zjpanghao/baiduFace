@@ -72,9 +72,9 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     int x = rect.x;
     int y = rect.y;
     if (x < 0 || y < 0 || rect.width + x > m.cols || rect.height + y > m.rows) { 
-  		LOG(ERROR) << "Error face Rect detect (x)" << x <<"(y) "<< y;
-  		return -3;
-	  }
+      LOG(ERROR) << "Error face Rect detect (x)" << x <<"(y) "<< y;
+      return -3;
+    }
     result.location.x = x;
     result.location.y = y;
     result.location.width= rect.width;
@@ -90,13 +90,13 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     if (count != 512) {
       continue;
     }
-	
+  
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
     result.attr = getAttr(&childImage[0], childImage.size(), api);
     result.quality = faceQuality(&childImage[0], childImage.size(), api);
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
-	  featureBuffers_->addBuffer(result.faceToken, buffer);
+    featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
   } 
 
@@ -212,7 +212,7 @@ int FaceService::searchByImage64(const std::set<std::string> &groupIds,
   data.assign(feature, feature + 512);
   return search(api, groupIds, data, num, searchResult);
 }
-						
+            
 int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
     const std::set<std::string> &groupIds, 
     const std::vector<float> &feature,
