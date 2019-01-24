@@ -69,7 +69,7 @@ void userFaceDelCb(struct evhttp_request *req, void *arg) {
   std::string faceToken;
   getJsonString(root, "group_id", groupId);
   getJsonString(root, "user_id", userId);
-  getJsonString(root, "face_token", userId);
+  getJsonString(root, "face_token", faceToken);
   if (groupId.empty()
       || userId.empty()
       || faceToken.empty()) {

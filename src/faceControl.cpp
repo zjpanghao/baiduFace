@@ -281,16 +281,16 @@ static void faceMatchCb(struct evhttp_request *req, void *arg) {
     return;
   }
   Json::Value faceResult;
+  Json::Value compareResult;
   faceResult["error_code"] = "0";
   faceResult["error_msg"] = "SUCCESS";
-  faceResult["score"] = score;
+  compareResult["score"] = score;
+  faceResult["result"] = compareResult;
  
   LOG(INFO) << faceResult.toStyledString();
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
 }
-
-
 
 void initFaceControl(std::vector<HttpControl> &controls) {
   std::vector<HttpControl> controlList = {
