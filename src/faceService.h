@@ -10,9 +10,9 @@
 #include <unistd.h>
 #include <mutex>
 #include "predis/redis_pool.h"
+#include <mongoc/mongoc.h>
+
 namespace kface {
-
-
 
 struct FaceBuffer {
   std::vector<float> feature;
@@ -119,22 +119,38 @@ class BaiduApiWrapper {
 };
 
 class FeatureBuffer {
+  enum BufferType {
+    REDIS,
+    MONGO
+  };
  public:
   FeatureBuffer(std::shared_ptr<RedisPool> redisPool) {
     redisPool_ = redisPool;
+    type_ = BufferType::REDIS;
+  }
+
+  FeatureBuffer(mongoc_client_pool_t *mpool, const std::string &dbName)
+    : mongoPool_(mpool),
+      type_(BufferType::MONGO),
+      dbName_(dbName) {
+ 
   }
   
-  bool setRedisPool(std::shared_ptr<RedisPool> redisPool) {
-    redisPool_ = redisPool;
-  }
   std::shared_ptr<FaceBuffer> getBuffer(const std::string &faceToken);
   void addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
-
+  
  private:
+  std::shared_ptr<FaceBuffer> getRedisBuffer(const std::string &faceToken);
+  std::shared_ptr<FaceBuffer> getMongoBuffer(const std::string &faceToken);
+  void addRedisBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
+  void addMongoBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
   int getBufferIndex(); 
-  std::map<std::string, std::shared_ptr<FaceBuffer> > faceBuffers[2];
+  //std::map<std::string, std::shared_ptr<FaceBuffer> > faceBuffers[2];
   std::shared_ptr<RedisPool> redisPool_{nullptr}; 
+  mongoc_client_pool_t *mongoPool_{NULL};
   std::mutex lock_;
+  BufferType type_;
+  std::string dbName_{""};
 };
 
 class FaceService {
@@ -142,7 +158,7 @@ class FaceService {
   static FaceService& getFaceService();
   FaceService();
   /* init baiduapi(now only support one instance), facelib*/
-  int init(std::shared_ptr<RedisPool> pool);
+  int init(mongoc_client_pool_t *mpool, const std::string &dbName);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,
@@ -217,6 +233,7 @@ class FaceService {
   BaiduFaceApiBuffer apiBuffers_;
   /*face feature buffer ordered by faceToken, clear by day*/
   std::shared_ptr<FeatureBuffer>  featureBuffers_{nullptr}; 
+ 
   /*facelib lock*/
   pthread_rwlock_t faceLock_; 
 };

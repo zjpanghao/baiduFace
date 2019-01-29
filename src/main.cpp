@@ -27,6 +27,8 @@
 #include "faceRepo.h"
 #include "faceService.h"
 #include "config/config.h"
+#include <mongoc/mongoc.h>
+
 
 using kface::FaceService;
 
@@ -79,8 +81,30 @@ int main(int argc, char *argv[]) {
   new RedisPool(config.get("redis", "ip"), 
                 redisPort, num, max, "3",
                 config.get("redis", "password")));
+  // mongo
+  ss.clear();
+  ss.str("");
+  ss << config.get("mongo", "uri");
+  std::string uriString(ss.str());
+ 
+  ss.clear();
+  ss.str("");
+  ss << config.get("mongo", "db");
+  std::string dbName(ss.str());
+  //const char *uri_string = "mongodb://test:123456@192.168.1.111:27017/test";
+  bson_error_t error;
+  mongoc_uri_t *uri = mongoc_uri_new_with_error(uriString.c_str(), &error);
+  if (!uri) {
+     LOG(ERROR) << "create mongo poll error" << error.message;
+     return -1;
+  }
+  mongoc_client_pool_t *pool = mongoc_client_pool_new(uri);
+  if (!pool) {
+    LOG(ERROR) << "create mongo poll error";
+    return -1;
+  }
   
-  if (0 !=service.init(redisPool)) {
+  if (0 !=service.init(pool, dbName)) {
     return -1;
   }
   

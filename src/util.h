@@ -49,6 +49,7 @@ void getJsonString(const Json::Value &value, const std::string &key, E &t) {
   if (value.isNull() || !value[key].isString()) {
     return;
   }
+  
   std::stringstream ss;
   ss << value[key].asString();
   ss >> t;
