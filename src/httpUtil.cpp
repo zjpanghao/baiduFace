@@ -117,11 +117,11 @@ void sendResponseResult(int errorCode,
 std::string getBodyStr(struct evhttp_request *req) {
   struct evbuffer *buf = evhttp_request_get_input_buffer(req);
   std::string result = "";
-  if (evbuffer_get_length(buf) >= MAX_RECV_SIZE  - 1024) {
-	return "";
-  }
+  //if (evbuffer_get_length(buf) >= MAX_RECV_SIZE  - 1024) {
+	//  return "";
+  //}
   
-  result.reserve(MAX_RECV_SIZE);
+  result.reserve(HTTP_RECV_BUF_SIZE);
   int rc = 0;
   int len = 0;
   while (evbuffer_get_length(buf)) {
@@ -130,9 +130,9 @@ std::string getBodyStr(struct evhttp_request *req) {
     n = evbuffer_remove(buf, cbuf, sizeof(cbuf));
     if (n > 0) {
       len += n;
-      if (len >= MAX_RECV_SIZE  - 1024) {
-        return "";
-      }
+      //if (len >= MAX_RECV_SIZE  - 1024) {
+      //  return "";
+      //}
       result += std::string(cbuf, n);
     }
   }

@@ -158,7 +158,7 @@ class FaceService {
   static FaceService& getFaceService();
   FaceService();
   /* init baiduapi(now only support one instance), facelib*/
-  int init(mongoc_client_pool_t *mpool, const std::string &dbName);
+  int init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,

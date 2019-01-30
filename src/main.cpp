@@ -51,6 +51,7 @@ static void initGlog(const std::string &name) {
 int main(int argc, char *argv[]) {
   kunyan::Config config("config.ini");
   std::string portConfig = config.get("server", "port");
+  std::string faceLib = config.get("server", "facelib");
   std::stringstream ss;
   ss << portConfig;
   int port;
@@ -59,8 +60,10 @@ int main(int argc, char *argv[]) {
   daemon(1, 0);
   initGlog(name);
   FaceService &service = FaceService::getFaceService();
+  
   ss.clear();
   ss.str("");
+  #if 0
   ss << config.get("redis", "port");
   int redisPort;
   ss >> redisPort;
@@ -81,6 +84,7 @@ int main(int argc, char *argv[]) {
   new RedisPool(config.get("redis", "ip"), 
                 redisPort, num, max, "3",
                 config.get("redis", "password")));
+ #endif
   // mongo
   ss.clear();
   ss.str("");
@@ -104,7 +108,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
   
-  if (0 !=service.init(pool, dbName)) {
+  if (0 !=service.init(pool, dbName, faceLib == "true")) {
     return -1;
   }
   

@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
   
-  if (0 !=service.init(pool, dbName)) {
+  if (0 !=service.init(pool, dbName, false)) {
     return -1;
   }
   //test_delUser("227", "227");

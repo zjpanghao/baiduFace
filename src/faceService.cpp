@@ -38,11 +38,13 @@ int FaceService::initAgent() {
   return 0;
 }
 
-int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName) {
+int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib) {
   apiBuffers_.init(1);
-  initRepoFaces(mpool, dbName);
   featureBuffers_.reset(new FeatureBuffer(mpool, dbName));
-  initAgent();
+  if (initFaceLib) {
+    initRepoFaces(mpool, dbName);
+    initAgent();
+  }
   return 0;
 }
 

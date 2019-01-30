@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 
-#define MAX_RECV_SIZE 10*1024*1024
+#define HTTP_RECV_BUF_SIZE 500*1024
 struct evhttp_request;
 struct evbuffer;
 std::string getBodyStr(struct evhttp_request *req);
