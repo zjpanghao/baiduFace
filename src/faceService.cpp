@@ -39,7 +39,9 @@ int FaceService::initAgent() {
 }
 
 int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib) {
+  //faceApi_.reset(new FaceApi());
   apiBuffers_.init(1);
+  faceApiBuffer_.init(20);
   featureBuffers_.reset(new FeatureBuffer(mpool, dbName));
   if (initFaceLib) {
     initRepoFaces(mpool, dbName);
@@ -51,27 +53,41 @@ int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bo
 int FaceService::detect(const std::vector<unsigned char> &data,
     int faceNum,
     std::vector<FaceDetectResult> &detectResult) {
+  if (data.size() < 10) {
+    return -1;
+  }
+  
   int rc = 0;
+  struct timeval tv[2];
+  gettimeofday(&tv[0], NULL);
+  Mat m = imdecode(Mat(data), 1);
+  std::vector<FaceLocation> locations;
+  FaceApiWrapper faceApiWrapper(faceApiBuffer_);
+  auto faceApi = faceApiWrapper.getApi();
+  if (faceApi == nullptr) {
+    return -1;
+  }
+  
+  faceApi->getLocations(m, locations);
+  //std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
+  //std::vector<TrackFaceInfo> *vec = out.get();
+  //int nFace = api->track(vec, m, faceNum);
+  if (locations.size() <= 0) {
+    return -2;
+  }
   BaiduApiWrapper baidu(apiBuffers_);
   auto api = baidu.getApi();
-  if (api == nullptr || data.size() < 10) {
+  if (api == nullptr) {
     return -1;
   }
   api->clearTrackedFaces();
-  Mat m = imdecode(Mat(data), 1);
-  std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
-  std::vector<TrackFaceInfo> *vec = out.get();
-  int nFace = api->track(vec, m, faceNum);
-  if (nFace <= 0) {
-    return -2;
-  }
-  for (TrackFaceInfo &info : *out) {
+  LOG(INFO) << "location size" << locations.size();
+  for (FaceLocation &location : locations) {
     FaceDetectResult result;
-    result.trackInfo = info;
-    
+    result.score = ((int)(location.confidence() * 300) % 100) / 100.0;
     /*calculate faceRect*/
-    RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
-    Rect rect = rRect.boundingRect();
+    //RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
+    Rect &rect = location.rect();
     int x = rect.x;
     int y = rect.y;
     if (x < 0 || y < 0 || rect.width + x > m.cols || rect.height + y > m.rows) { 
@@ -82,12 +98,14 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     result.location.y = y;
     result.location.width= rect.width;
     result.location.height= rect.height;
-    result.location.rotation = rRect.angle;
+    result.location.rotation = 0;
     
     /*getfeature and save*/
     Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
     std::vector<unsigned char> childImage;
-    imencode(".jpg", child, childImage);  
+   
+    imencode(".jpg", child, childImage); 
+  
     const float *feature = nullptr;
     int count = api->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
     if (count != 512) {
@@ -96,10 +114,23 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
+    #if 1
     result.attr = getAttr(&childImage[0], childImage.size(), api);
+    if (result.attr == nullptr) {
+      continue;
+    }
     result.quality = faceQuality(&childImage[0], childImage.size(), api);
+    if (result.quality == nullptr) {
+      continue;
+    }
+    #endif
+    gettimeofday(&tv[1], NULL);
+ 
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
+    LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
+    LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
+   
     detectResult.push_back(result);
   } 
 
@@ -625,6 +656,7 @@ void FeatureBuffer::addMongoBuffer(const std::string &faceToken,
   std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
   BSON_APPEND_UTF8(insert, "feature", featureBase64.c_str());
   BSON_APPEND_UTF8(insert, "face_token", faceToken.c_str());
+  BSON_APPEND_TIME_T(insert, "createTime", time(NULL));
   if (!mongoc_collection_insert_one(collection, insert, NULL, NULL, &error)) {
     LOG(ERROR) << error.message;
   }
@@ -676,7 +708,7 @@ std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::getInitApi() {
   if (!api->is_auth()) {
     return nullptr;
   }
-  api->set_min_face_size(15);
+  api->set_min_face_size(1);
   return api;
 }
 
@@ -697,5 +729,39 @@ void BaiduFaceApiBuffer::offerBufferedApi(std::shared_ptr<BaiduFaceApi> api) {
   std::lock_guard<std::mutex> guard(lock_);
   apis_.push_back(api);
 }
+
+int FaceApiBuffer::init(int bufferNums) {
+  for (int i = 0; i < bufferNums; i++) {
+    auto api = getInitApi();
+    if (api != nullptr) {
+      apis_.push_back(api);
+    }
+  }
+  return apis_.empty() ? -1 : 0; 
+}
+
+std::shared_ptr<FaceApi> FaceApiBuffer::getInitApi() {
+  std::shared_ptr<FaceApi> api(new FaceApi());
+  return api;
+}
+
+std::shared_ptr<FaceApi> FaceApiBuffer::borrowBufferedApi() {
+  std::lock_guard<std::mutex> guard(lock_);
+  if (apis_.empty()) {
+    return nullptr;
+  }
+  auto api = apis_.front();
+  apis_.pop_front();
+  return api;
+}
+
+void FaceApiBuffer::offerBufferedApi(std::shared_ptr<FaceApi> api) {
+  if (api == nullptr) {
+    return;
+  }
+  std::lock_guard<std::mutex> guard(lock_);
+  apis_.push_back(api);
+}
+
 
 }

@@ -49,17 +49,27 @@ static void initGlog(const std::string &name) {
 }
 
 int main(int argc, char *argv[]) {
+  std::string name(argv[0]);
+  daemon(1, 0);
+  initGlog(name);
   kunyan::Config config("config.ini");
   std::string portConfig = config.get("server", "port");
   std::string faceLib = config.get("server", "facelib");
+  std::string threadConfig = config.get("server", "thread");
   std::stringstream ss;
   ss << portConfig;
   int port;
   ss >> port;
-  std::string name(argv[0]);
-  daemon(1, 0);
-  initGlog(name);
-  FaceService &service = FaceService::getFaceService();
+
+  ss.clear();
+  ss.str("");
+  
+  int threadNum = 1;
+  if (!threadConfig.empty()) {
+    ss << threadConfig;
+    ss >> threadNum;
+  }
+  LOG(INFO) << "threadnum:" << threadNum;
   
   ss.clear();
   ss.str("");
@@ -107,12 +117,12 @@ int main(int argc, char *argv[]) {
     LOG(ERROR) << "create mongo poll error";
     return -1;
   }
-  
+  FaceService &service = FaceService::getFaceService();
   if (0 !=service.init(pool, dbName, faceLib == "true")) {
     return -1;
   }
   
-  ev_server_start_multhread(port, 1); 
+  ev_server_start_multhread(port, threadNum); 
   while (1) {
     sleep(10000);
   }

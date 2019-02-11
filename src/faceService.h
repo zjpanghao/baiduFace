@@ -11,6 +11,7 @@
 #include <mutex>
 #include "predis/redis_pool.h"
 #include <mongoc/mongoc.h>
+#include "face/faceApi.h"
 
 namespace kface {
 
@@ -62,7 +63,8 @@ struct FaceDetectResult {
   std::shared_ptr<FaceAttr> attr;
   std::shared_ptr<FaceQuality> quality;
   Location location;
-  TrackFaceInfo trackInfo;
+  double score;
+  std::shared_ptr<TrackFaceInfo> trackInfo;
 };
 
 struct FaceSearchResult {
@@ -116,6 +118,53 @@ class BaiduApiWrapper {
  private:
    std::shared_ptr<BaiduFaceApi> api_{nullptr};
    BaiduFaceApiBuffer &buffers_;
+};
+
+class FaceApiBuffer {
+ public:
+  FaceApiBuffer() {
+  }
+  std::shared_ptr<FaceApi> borrowBufferedApi();
+  
+  void offerBufferedApi(std::shared_ptr<FaceApi> api); 
+
+  int init(int bufferNums);
+
+ private:
+  std::shared_ptr<FaceApi> getInitApi(); 
+  std::list<std::shared_ptr<FaceApi>> apis_;
+  std::mutex lock_;
+};
+
+
+class FaceApiWrapper {
+ public:
+   explicit FaceApiWrapper(FaceApiBuffer &buffers)
+    : buffers_(buffers) {
+      api_ = buffers.borrowBufferedApi();
+   }
+   ~FaceApiWrapper() {
+     if (api_ != nullptr) {
+       buffers_.offerBufferedApi(api_);
+     }
+   }
+
+   std::shared_ptr<FaceApi> getApi() {
+     int count = 0;
+     while (api_ == nullptr) {
+       api_ = buffers_.borrowBufferedApi();
+       sleep(1);
+       count++;
+       if (count > 3) {
+         break;
+       }
+     }
+     return api_;
+   }
+
+ private:
+   std::shared_ptr<FaceApi> api_{nullptr};
+   FaceApiBuffer &buffers_;
 };
 
 class FeatureBuffer {
@@ -231,6 +280,10 @@ class FaceService {
   int initAgent();
   /* baiduapi buffer*/                                             
   BaiduFaceApiBuffer apiBuffers_;
+
+  FaceApiBuffer faceApiBuffer_;
+
+  std::shared_ptr<FaceApi> faceApi_;
   /*face feature buffer ordered by faceToken, clear by day*/
   std::shared_ptr<FeatureBuffer>  featureBuffers_{nullptr}; 
  

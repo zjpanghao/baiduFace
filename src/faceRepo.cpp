@@ -15,7 +15,6 @@ namespace kface {
 static mongoc_client_pool_t *poolG = NULL;
 static char dbNameG[128];
 
-
 #if 0
   void loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
     std::ifstream imageFile(name, std::ifstream::in);
@@ -126,7 +125,6 @@ static void loadPersonFaces(const std::string &name, std::list<PersonFace> &face
     if (featureBase64.empty()) {
       goto QUERY_END;
     }
-    LOG(INFO) << "feature size" << featureBase64.length();
     len = 0;
     data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
     
@@ -177,8 +175,6 @@ int repoDelUserFace(const PersonFace &face) {
   bson_t *query = bson_new();
   bson_error_t error;
   mongoc_cursor_t *cursor = NULL;
-  std::string featureBase64 = ImageBase64::encode((unsigned char*)&face.image->feature[0], 
-                                                   face.image->feature.size() * sizeof(float));
   BSON_APPEND_UTF8(query, "faceToken", face.image->faceToken.c_str());
   BSON_APPEND_UTF8(query, "groupId", face.groupId.c_str());
   BSON_APPEND_UTF8(query, "userId", face.userId.c_str());

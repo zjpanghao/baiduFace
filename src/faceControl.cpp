@@ -44,6 +44,8 @@
 
 namespace kface {
 void faceDetectCb(struct evhttp_request *req, void *arg) {
+  struct timeval tv[2];
+  
   int rc = 0;
   std::vector<FaceDetectResult> result;
   Json::Value root;
@@ -57,15 +59,19 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-
+  
   std::string body = getBodyStr(req);
+  gettimeofday(&tv[0], NULL);
   if (!reader.parse(body, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
+  gettimeofday(&tv[1], NULL);
   std::string data;
+  
   getJsonString(root, "image", data);
+ 
   if (data.empty()) {
     rc = -4;
     sendResponse(rc, "image error", req, response);
@@ -108,8 +114,21 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       Json::Value expression;
       expression["type"] = it->attr->expression ? "smile" : "none";
       item["expression"] = expression;
+    } else {
+      Json::Value gender;
+      gender["type"] = "unkown";
+      gender["probability"] = 0;
+      item["gender"] = gender;
+      item["age"] = 0;
+      Json::Value glasses;
+      glasses["type"] = "UNKOWN";
+      item["glasses"] = glasses;
+      Json::Value expression;
+      expression["type"] = "unkown";
+      item["expression"] = expression;
     }
-    item["face_probability"] =  it->trackInfo.score;
+    
+    item["face_probability"] =  it->score;
     Json::Value location;
     location["left"] = it->location.x;
     location["top"] = it->location.y;
@@ -121,7 +140,6 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       Json::Value quality;
       quality["illumination"] = it->quality->illumination;
       quality["blur"] = it->quality->blur;
-      quality["completeness"] = it->quality->completeness;
       Json::Value occl;
       occl["left_eye"] = (int)it->quality->occlution.leftEye;
       occl["right_eye"] = (int)it->quality->occlution.rightEye;
@@ -133,13 +151,34 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       quality["occlusion"] = occl;
       quality["completeness"] = it->quality->completeness;
       item["quality"] = quality;
+    } else {
+      Json::Value quality;
+      quality["illumination"] = 0;
+      quality["blur"] = 0;
+      quality["completeness"] = 1;
+      Json::Value occl;
+      occl["left_eye"] = 0;
+      occl["right_eye"] = 0;
+      occl["left_cheek"] = 0;
+      occl["right_cheek"] = 0;
+      occl["mouth"] = 0;
+      occl["nose"] = 0.0;
+      occl["chin_contour"] = 0;
+      quality["occlusion"] = occl;
+      item["quality"] = quality;
     }
 
     Json::Value headPose;
     int inx = 0;
     std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
-    for (float v : it->trackInfo.headPose) {
-      headPose[angleNames[inx++]] = v;
+    if (it->trackInfo != nullptr) {
+      for (float v : it->trackInfo->headPose) {
+        headPose[angleNames[inx++]] = v;
+      }
+    } else {
+      for (int i = 0; i < 3; i++) {
+        headPose[angleNames[inx++]] = 0;
+      }
     }
     item["angle"] = headPose;
     items.append(item);
@@ -153,6 +192,7 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   }
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
+  
 }
 
 void faceIdentifyCb(struct evhttp_request *req, void *arg) {
@@ -165,6 +205,7 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
+
   std::string body = getBodyStr(req);
   Json::Reader reader;
   if (!reader.parse(body, root)) {
