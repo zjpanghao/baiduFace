@@ -12,6 +12,7 @@
 #include "predis/redis_pool.h"
 #include <mongoc/mongoc.h>
 #include "face/faceApi.h"
+#include <condition_variable>
 
 namespace kface {
 
@@ -87,6 +88,7 @@ class BaiduFaceApiBuffer {
  private:
   std::shared_ptr<BaiduFaceApi> getInitApi(); 
   std::list<std::shared_ptr<BaiduFaceApi>> apis_;
+  std::condition_variable bufferFull_;
   std::mutex lock_;
 };
 
@@ -133,6 +135,7 @@ class FaceApiBuffer {
  private:
   std::shared_ptr<FaceApi> getInitApi(); 
   std::list<std::shared_ptr<FaceApi>> apis_;
+  std::condition_variable bufferFull_;
   std::mutex lock_;
 };
 
@@ -207,7 +210,7 @@ class FaceService {
   static FaceService& getFaceService();
   FaceService();
   /* init baiduapi(now only support one instance), facelib*/
-  int init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib);
+  int init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib, int threadNum);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,

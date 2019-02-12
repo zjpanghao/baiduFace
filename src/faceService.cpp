@@ -38,10 +38,10 @@ int FaceService::initAgent() {
   return 0;
 }
 
-int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib) {
+int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib, int threadNum) {
   //faceApi_.reset(new FaceApi());
   apiBuffers_.init(1);
-  faceApiBuffer_.init(20);
+  faceApiBuffer_.init(threadNum);
   featureBuffers_.reset(new FeatureBuffer(mpool, dbName));
   if (initFaceLib) {
     initRepoFaces(mpool, dbName);
@@ -58,8 +58,7 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   }
   
   int rc = 0;
-  struct timeval tv[2];
-  gettimeofday(&tv[0], NULL);
+  struct timeval tv[2];  
   Mat m = imdecode(Mat(data), 1);
   std::vector<FaceLocation> locations;
   FaceApiWrapper faceApiWrapper(faceApiBuffer_);
@@ -67,8 +66,11 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   if (faceApi == nullptr) {
     return -1;
   }
-  
+  gettimeofday(&tv[0], NULL);
   faceApi->getLocations(m, locations);
+  gettimeofday(&tv[1], NULL);
+  LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
+  LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
   //std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
   //std::vector<TrackFaceInfo> *vec = out.get();
   //int nFace = api->track(vec, m, faceNum);
@@ -81,10 +83,12 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     return -1;
   }
   api->clearTrackedFaces();
+  LOG(INFO) << "data size:" << data.size();
   LOG(INFO) << "location size" << locations.size();
   for (FaceLocation &location : locations) {
     FaceDetectResult result;
-    result.score = ((int)(location.confidence() * 300) % 100) / 100.0;
+    //result.score = ((int)(location.confidence() * 300) % 100) / 100.0;
+    result.score = location.confidence();
     /*calculate faceRect*/
     //RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
     Rect &rect = location.rect();
@@ -103,15 +107,12 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     /*getfeature and save*/
     Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
     std::vector<unsigned char> childImage;
-   
-    imencode(".jpg", child, childImage); 
-  
     const float *feature = nullptr;
+    imencode(".jpg", child, childImage);
     int count = api->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
     if (count != 512) {
       continue;
     }
-  
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
     #if 1
@@ -124,13 +125,10 @@ int FaceService::detect(const std::vector<unsigned char> &data,
       continue;
     }
     #endif
-    gettimeofday(&tv[1], NULL);
+    
  
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
-    featureBuffers_->addBuffer(result.faceToken, buffer);
-    LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
-    LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
-   
+    featureBuffers_->addBuffer(result.faceToken, buffer);   
     detectResult.push_back(result);
   } 
 
@@ -713,10 +711,8 @@ std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::getInitApi() {
 }
 
 std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::borrowBufferedApi() {
-  std::lock_guard<std::mutex> guard(lock_);
-  if (apis_.empty()) {
-    return nullptr;
-  }
+  std::unique_lock<std::mutex> ulock(lock_);
+  bufferFull_.wait(ulock, [this](){return !apis_.empty();});
   auto api = apis_.front();
   apis_.pop_front();
   return api;
@@ -726,7 +722,10 @@ void BaiduFaceApiBuffer::offerBufferedApi(std::shared_ptr<BaiduFaceApi> api) {
   if (api == nullptr) {
     return;
   }
-  std::lock_guard<std::mutex> guard(lock_);
+  std::unique_lock<std::mutex> ulock(lock_);
+  if (apis_.empty()) {
+    bufferFull_.notify_one();
+  }
   apis_.push_back(api);
 }
 
@@ -746,10 +745,8 @@ std::shared_ptr<FaceApi> FaceApiBuffer::getInitApi() {
 }
 
 std::shared_ptr<FaceApi> FaceApiBuffer::borrowBufferedApi() {
-  std::lock_guard<std::mutex> guard(lock_);
-  if (apis_.empty()) {
-    return nullptr;
-  }
+  std::unique_lock<std::mutex> ulock(lock_);
+  bufferFull_.wait(ulock, [this](){return !apis_.empty();});
   auto api = apis_.front();
   apis_.pop_front();
   return api;
@@ -759,9 +756,11 @@ void FaceApiBuffer::offerBufferedApi(std::shared_ptr<FaceApi> api) {
   if (api == nullptr) {
     return;
   }
-  std::lock_guard<std::mutex> guard(lock_);
+  std::unique_lock<std::mutex> ulock(lock_);
+  if (apis_.empty()) {
+    bufferFull_.notify_one();
+  }
   apis_.push_back(api);
 }
-
 
 }

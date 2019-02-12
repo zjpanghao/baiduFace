@@ -69,7 +69,6 @@ int main(int argc, char *argv[]) {
     ss << threadConfig;
     ss >> threadNum;
   }
-  LOG(INFO) << "threadnum:" << threadNum;
   
   ss.clear();
   ss.str("");
@@ -118,7 +117,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
   FaceService &service = FaceService::getFaceService();
-  if (0 !=service.init(pool, dbName, faceLib == "true")) {
+  if (0 !=service.init(pool, dbName, faceLib == "true", threadNum)) {
     return -1;
   }
   
