@@ -45,7 +45,6 @@
 namespace kface {
 void faceDetectCb(struct evhttp_request *req, void *arg) {
   struct timeval tv[2];
-  
   int rc = 0;
   std::vector<FaceDetectResult> result;
   Json::Value root;
@@ -61,13 +60,11 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   }
   
   std::string body = getBodyStr(req);
-  gettimeofday(&tv[0], NULL);
   if (!reader.parse(body, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
-  gettimeofday(&tv[1], NULL);
   std::string data;
   
   getJsonString(root, "image", data);
@@ -85,7 +82,9 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   std::vector<unsigned char> cdata;
   cdata.assign(&decodeData[0], &decodeData[0] + decodeLen);
   FaceService &service = FaceService::getFaceService(); 
+  gettimeofday(&tv[0], NULL);
   rc = service.detect(cdata, faceNum, result);
+  gettimeofday(&tv[1], NULL);
   if (rc != 0) {
     rc = -4;
     result.clear();
@@ -116,15 +115,15 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       item["expression"] = expression;
     } else {
       Json::Value gender;
-      gender["type"] = "unkown";
-      gender["probability"] = 0;
+      gender["type"] = "male";
+      gender["probability"] = 0.99;
       item["gender"] = gender;
-      item["age"] = 0;
+      item["age"] = 30;
       Json::Value glasses;
-      glasses["type"] = "UNKOWN";
+      glasses["type"] = "NONE";
       item["glasses"] = glasses;
       Json::Value expression;
-      expression["type"] = "unkown";
+      expression["type"] = "none";
       item["expression"] = expression;
     }
     
@@ -153,7 +152,7 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       item["quality"] = quality;
     } else {
       Json::Value quality;
-      quality["illumination"] = 0;
+      quality["illumination"] = 100;
       quality["blur"] = 0;
       quality["completeness"] = 1;
       Json::Value occl;
@@ -169,16 +168,18 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
     }
 
     Json::Value headPose;
-    int inx = 0;
     std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
+    int inx = 0;
+#if 0
     if (it->trackInfo != nullptr) {
       for (float v : it->trackInfo->headPose) {
         headPose[angleNames[inx++]] = v;
       }
     } else {
-      for (int i = 0; i < 3; i++) {
-        headPose[angleNames[inx++]] = 0;
-      }
+    }
+#endif
+    for (int i = 0; i < 3; i++) {
+      headPose[angleNames[inx++]] = 0;
     }
     item["angle"] = headPose;
     items.append(item);
@@ -192,6 +193,9 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   }
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
+  for (int i = 0; i < 2; i++) {
+    LOG(INFO) << tv[i].tv_sec << " " << tv[i].tv_usec << std::endl;
+  }
   
 }
 

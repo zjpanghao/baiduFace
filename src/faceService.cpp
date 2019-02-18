@@ -13,6 +13,8 @@
 #include "predis/redis_pool.h"
 #define BAIDU_FEATURE_KEY "baiduFeature"
 #define MAX_FACE_TRACK 5
+#define FEATURE_VEC_LEN 128
+#define FACE_FEATURE_LIB "face_feature_lib"
 using  cv::Mat;
 using cv::RotatedRect;
 using cv::Rect;
@@ -40,7 +42,7 @@ int FaceService::initAgent() {
 
 int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib, int threadNum) {
   //faceApi_.reset(new FaceApi());
-  apiBuffers_.init(1);
+  //apiBuffers_.init(1);
   faceApiBuffer_.init(threadNum);
   featureBuffers_.reset(new FeatureBuffer(mpool, dbName));
   if (initFaceLib) {
@@ -59,9 +61,9 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
   int rc = 0;
   struct timeval tv[2];  
-  Mat m = imdecode(Mat(data), 1);
+  cv::Mat m = cv::imdecode(data, CV_LOAD_IMAGE_COLOR);
   std::vector<FaceLocation> locations;
-  FaceApiWrapper faceApiWrapper(faceApiBuffer_);
+  ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
   auto faceApi = faceApiWrapper.getApi();
   if (faceApi == nullptr) {
     return -1;
@@ -69,28 +71,17 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   gettimeofday(&tv[0], NULL);
   faceApi->getLocations(m, locations);
   gettimeofday(&tv[1], NULL);
-  LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
-  LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
   //std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
   //std::vector<TrackFaceInfo> *vec = out.get();
   //int nFace = api->track(vec, m, faceNum);
   if (locations.size() <= 0) {
     return -2;
   }
-  BaiduApiWrapper baidu(apiBuffers_);
-  auto api = baidu.getApi();
-  if (api == nullptr) {
-    return -1;
-  }
-  api->clearTrackedFaces();
   LOG(INFO) << "data size:" << data.size();
   LOG(INFO) << "location size" << locations.size();
   for (FaceLocation &location : locations) {
     FaceDetectResult result;
-    //result.score = ((int)(location.confidence() * 300) % 100) / 100.0;
     result.score = location.confidence();
-    /*calculate faceRect*/
-    //RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
     Rect &rect = location.rect();
     int x = rect.x;
     int y = rect.y;
@@ -105,17 +96,22 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     result.location.rotation = 0;
     
     /*getfeature and save*/
-    Mat child(m, Rect(x, y, result.location.width, result.location.height)); 
+    Mat child(m, rect); 
+    std::vector<float> feature;
     std::vector<unsigned char> childImage;
-    const float *feature = nullptr;
-    imencode(".jpg", child, childImage);
-    int count = api->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
-    if (count != 512) {
+    //Mat cut = child.clone();
+    //cut.data, cut.rows * cut.cols * cut.channels()
+    LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
+    LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
+    std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
+    if (faceApi->getFeature(child, buffer->feature) != 0 || buffer->feature.size() != FEATURE_VEC_LEN) {
       continue;
     }
-    std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
-    buffer->feature.assign(feature, feature + 512);
-    #if 1
+    for (int i = 0; i < 10; i++) {
+      LOG(INFO) << buffer->feature[i] << ",";
+    }
+    //buffer->feature.assign(feature, feature + 128);
+    #if 0
     result.attr = getAttr(&childImage[0], childImage.size(), api);
     if (result.attr == nullptr) {
       continue;
@@ -127,12 +123,14 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     #endif
     
  
+    imencode(".jpg", child, childImage);
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);   
     detectResult.push_back(result);
   } 
-
-  api->clearTrackedFaces();
+  if (detectResult.size() > 0) {
+    imwrite("latest.jpg", m);
+  }
   return rc;
 }
 
@@ -143,14 +141,15 @@ int FaceService::search(const std::set<std::string> &groupIds,
 
   std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
   if (featureBuffer == nullptr) {
+    LOG(INFO) << "error buffer";
     return -1;
   }
-  BaiduApiWrapper baidu(apiBuffers_);
-  auto api = baidu.getApi();
-  if (api == nullptr) {
-    return -2;
+  ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
+  auto faceApi = faceApiWrapper.getApi();
+  if (faceApi == nullptr) {
+    return -1;
   }
-  return search(api, groupIds, featureBuffer->feature, num, searchResult);
+  return search(faceApi, groupIds, featureBuffer->feature, num, searchResult);
 }
 
 int FaceService::match(const std::string &faceToken,                   
@@ -162,90 +161,90 @@ int FaceService::match(const std::string &faceToken,
   if (featureBuffer == nullptr || featureBufferCompare == nullptr) {
     return -1;
   }
-  BaiduApiWrapper baidu(apiBuffers_);
-  auto api = baidu.getApi();
-  if (api == nullptr) {
-    return -2;
+  ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
+  auto faceApi = faceApiWrapper.getApi();
+  if (faceApi == nullptr) {
+    return -1;
   }
-  score = api->compare_feature(featureBuffer->feature, featureBufferCompare->feature);
+  score = faceApi->compareFeature(featureBuffer->feature, featureBufferCompare->feature);
   return 0;
 }
 
  int FaceService::matchImageToken(const std::string &image64,                   
-                                         const std::string &faceToken,              
-                                         float &score) {
-   BaiduApiWrapper baidu(apiBuffers_);
-   auto api = baidu.getApi();
-   if (api == nullptr) {
-     return -2;
-   }
-   const float *feature = NULL;
-   int count = api->get_face_feature(image64.c_str(), 1, feature);
-   if (count != 512) {
-     return -2;
-   }
-   std::vector<float> data;
-   data.assign(feature, feature + 512);
+     const std::string &faceToken,              
+     float &score) {
    std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
    if (featureBuffer == nullptr) {
      return -1;
    }
-   score = api->compare_feature(featureBuffer->feature, data);
+   ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
+   auto faceApi = faceApiWrapper.getApi();
+   if (faceApi == nullptr) {
+     return -1;
+   }
+   int len = 0;
+   std::string data = ImageBase64::decode(image64.c_str(), image64.length(), len);
+   std::vector<unsigned char> vdata(&data[0], &data[0] + len);
+   cv::Mat m = cv::imdecode(vdata, CV_LOAD_IMAGE_COLOR);
+   std::vector<float> feature;
+   faceApi->getFeature(m, feature);
+   if (feature.size() != FEATURE_VEC_LEN) {
+     return -2;
+   }
+   score = faceApi->compareFeature(featureBuffer->feature, feature);
    return 0;
  }
 
 int FaceService::matchImage(const std::string &image64,                   
                                  const std::string &image64Compare,              
                                  float &score) {
- BaiduApiWrapper baidu(apiBuffers_);
- auto api = baidu.getApi();
- if (api == nullptr) {
-   return -2;
- }
- const float *feature = NULL;
- int count = api->get_face_feature(image64.c_str(), 1, feature);
- if (count != 512) {
-   return -2;
- }
- std::vector<float> data;
- data.assign(feature, feature + 512);
-
- count = api->get_face_feature(image64Compare.c_str(), 1, feature);
- if (count != 512) {
-   return -2;
- }
- std::vector<float> dataCompare;
- dataCompare.assign(feature, feature + 512); 
- score = api->compare_feature(dataCompare, data);
- return 0;
+   ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
+   auto faceApi = faceApiWrapper.getApi();
+   if (faceApi == nullptr) {
+     return -1;
+   }
+   int len = 0;
+   std::string data = ImageBase64::decode(image64.c_str(), image64.length(), len);
+   std::vector<unsigned char> vdata(&data[0], &data[0] + len);
+   cv::Mat m = cv::imdecode(vdata, CV_LOAD_IMAGE_COLOR);
+   std::vector<float> feature;
+   faceApi->getFeature(m, feature);
+   if (feature.size() != FEATURE_VEC_LEN) {
+     return -2;
+   }
+   std::vector<float> featureCompare;
+   std::string dataCompare = ImageBase64::decode(image64Compare.c_str(), image64Compare.length(), len);
+   std::vector<unsigned char> vdataCompare(&dataCompare[0], &dataCompare[0] + len);
+   cv::Mat mCompare = cv::imdecode(vdataCompare, CV_LOAD_IMAGE_COLOR);
+   faceApi->getFeature(mCompare, featureCompare);
+   if (featureCompare.size() != FEATURE_VEC_LEN) {
+     return -3;
+   }
+   return faceApi->compareFeature(feature, featureCompare); 
 }
 
 int FaceService::searchByImage64(const std::set<std::string> &groupIds, 
-                                        const std::string &imageBase64, 
-                                        int num,
-                                        std::vector<FaceSearchResult> &searchResult) {
-
-  BaiduApiWrapper baidu(apiBuffers_);
-  auto api = baidu.getApi();
-  if (api == nullptr) {
-    return -1;
-  }
-  const float *feature = nullptr;
-  struct timeval tv[2];
-  gettimeofday(&tv[0], NULL);
-  int count = api->get_face_feature(imageBase64.c_str(), 1, feature);
-  gettimeofday(&tv[1], NULL);
-  LOG(INFO) << tv[0].tv_sec << "  " << tv[0].tv_usec;
-  LOG(INFO) << tv[1].tv_sec << "  " << tv[1].tv_usec;
-  if (count != 512) {
-    return -2;
-  }
-  std::vector<float> data;
-  data.assign(feature, feature + 512);
-  return search(api, groupIds, data, num, searchResult);
+                                 const std::string &imageBase64, 
+                                 int num,
+                                 std::vector<FaceSearchResult> &searchResult) {
+   ApiWrapper<FaceApi> faceApiWrapper(faceApiBuffer_);
+   auto faceApi = faceApiWrapper.getApi();
+   if (faceApi == nullptr) {
+     return -1;
+   }
+   int len = 0;
+   std::string data = ImageBase64::decode(imageBase64.c_str(), imageBase64.length(), len);
+   std::vector<unsigned char> vdata(&data[0], &data[0] + len);
+   cv::Mat m = cv::imdecode(vdata, CV_LOAD_IMAGE_COLOR);
+   std::vector<float> feature;
+   faceApi->getFeature(m, feature);
+   if (feature.size() != FEATURE_VEC_LEN) {
+     return -2;
+   }
+   return search(faceApi, groupIds, feature, num, searchResult);
 }
             
-int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
+int FaceService::search(std::shared_ptr<FaceApi> api,
     const std::set<std::string> &groupIds, 
     const std::vector<float> &feature,
     int num,
@@ -257,14 +256,14 @@ int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
   faceAgent.getDefaultPersonFaces(faces);
-
+  
   /*get the highest mark of each userId*/
   std::map<std::string, float> userScore;
   for (auto &face : faces) {
     if (groupIds.count(face.groupId) == 0) {
       continue;
     }
-    float score = api->compare_feature(face.image->feature, feature);
+    float score = api->compareFeature(face.image->feature, feature);
     std::string key = face.groupId + "_" +face.userId; 
     if (userScore[key] < score)  {
       userScore[key] = score;
@@ -310,67 +309,26 @@ static void getBaiString(Json::Value &value, const std::string &key, E &t) {
 
 std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, int len){
   std::shared_ptr<FaceAttr> attr;
-  BaiduApiWrapper wapper(apiBuffers_);
-  auto api = wapper.getApi();
-  return getAttr(data, len, api);
+  return nullptr;
 }
 
 std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data, 
     int len,
-    std::shared_ptr<BaiduFaceApi> api){
+    std::shared_ptr<FaceApi> api){
   if (api == nullptr) {
     return nullptr;
   }
-  std::shared_ptr<FaceAttr> attr;
-  std::string result =  api->face_attr_by_buf(data, len);
-  Json::Value root;
-  Json::Reader reader;;
-  if (true == reader.parse(result, root)) {
-    if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
-      attr.reset(new FaceAttr());
-      getBaiString(root, "age", attr->age);
-      getBaiString(root, "gender", attr->gender);
-      getBaiString(root, "gender_conf", attr->genderConfidence);
-      getBaiString(root, "glass", attr->glasses);
-      getBaiString(root, "expression", attr->expression);
-    }
-  }
-  return attr;
+  return nullptr;
 }
 
 std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data, int len){
   std::shared_ptr<FaceQuality> value;
-  BaiduApiWrapper wapper(apiBuffers_);
-  auto api = wapper.getApi();
-  if (api == nullptr) {
-    return nullptr;
-  }
-  return faceQuality(data, len, api);
+  return nullptr;
 }
 
 std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data, int len,
-    std::shared_ptr<BaiduFaceApi> api){
-  std::shared_ptr<FaceQuality> value;
-  std::string result =  api->face_quality_by_buf(data, len);
-  Json::Value root;
-  Json::Reader reader;;
-  std::stringstream ss;
-  if (true == reader.parse(result, root)) {
-    if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
-      value.reset(new FaceQuality());
-      value->completeness = 1;
-      getBaiString(root, "bluriness", value->blur);
-      getBaiString(root, "illum", value->illumination);
-      getBaiString(root, "occl_l_eye", value->occlution.leftEye);
-      getBaiString(root, "occl_r_eye", value->occlution.rightEye);
-      getBaiString(root, "occl_l_contour", value->occlution.leftCheek);
-      getBaiString(root, "occl_r_contour", value->occlution.rightCheek);;
-      getBaiString(root, "occl_mouth", value->occlution.mouth);
-      getBaiString(root, "occl_nose", value->occlution.nose);
-      getBaiString(root, "occl_chin",value->occlution.chinContour);
-    }
-  }
-  return value;
+    std::shared_ptr<FaceApi> api){
+  return nullptr;
 }
 
 int FaceService::addUserFace(const std::string &groupId,
@@ -474,10 +432,7 @@ int FaceService::updateUserFace(const std::string &groupId,
   }
 
   int rc = faceAgent.delPerson(face);
-  if (rc != 0) {
-    LOG(ERROR) << "delete person :" << face.userId << " error";
-    return - 4;
-  }
+  LOG(INFO) << "delete person :" << face.userId << rc;
   
   if (repoAddUserFace(face) < 0) {
     LOG(ERROR) << "repo add user face error";
@@ -517,7 +472,7 @@ int FaceService::delUserFace(const std::string &groupId,
     flushFaces();
   }
   LOG(INFO) << "del face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
-  return rc;
+  return 0;
 }
 
 int FaceService::delUser(const std::string &groupId,
@@ -540,7 +495,7 @@ int FaceService::delUser(const std::string &groupId,
     flushFaces();
   }
   LOG(INFO) << "del user  userId" << userId <<  "rc:" << rc;
-  return rc;
+  return 0;
 }
 
 int FeatureBuffer::getBufferIndex() {
@@ -553,7 +508,7 @@ int FeatureBuffer::getBufferIndex() {
 
 std::shared_ptr<FaceBuffer> FeatureBuffer::getMongoBuffer(const std::string &faceToken) {
   mongoc_client_t *client = mongoc_client_pool_pop(mongoPool_);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), "face_feature");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), FACE_FEATURE_LIB);
   bson_t *query = BCON_NEW("face_token", faceToken.c_str());
   const bson_t *doc = NULL;
   mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(collection, query, NULL, NULL);
@@ -579,9 +534,9 @@ std::shared_ptr<FaceBuffer> FeatureBuffer::getMongoBuffer(const std::string &fac
     goto QUERY_END;
   }
   data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
-  if (len == 512 * sizeof(float)) {
+  if (len == FEATURE_VEC_LEN * sizeof(float)) {
     buffer.reset(new FaceBuffer());
-    buffer->feature.assign((float*)&data[0], (float*)&data[0] + 512);
+    buffer->feature.assign((float*)&data[0], (float*)&data[0] + FEATURE_VEC_LEN);
   }
   
 QUERY_END:
@@ -608,11 +563,11 @@ std::shared_ptr<FaceBuffer> FeatureBuffer::getRedisBuffer(const std::string &fac
   }
   int len = 0;
   std::string data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
-  if (len != 512 * sizeof(float)) {
+  if (len != FEATURE_VEC_LEN * sizeof(float)) {
     return nullptr;
   }
   std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
-  buffer->feature.assign((float*)&data[0], (float*)&data[0] + 512);
+  buffer->feature.assign((float*)&data[0], (float*)&data[0] + FEATURE_VEC_LEN);
   return buffer;
 }
 
@@ -648,7 +603,7 @@ void FeatureBuffer::addRedisBuffer(const std::string &faceToken, std::shared_ptr
 void FeatureBuffer::addMongoBuffer(const std::string &faceToken, 
                                           std::shared_ptr<FaceBuffer> buffer) {
   mongoc_client_t *client = mongoc_client_pool_pop(mongoPool_);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), "face_feature");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), FACE_FEATURE_LIB);
   bson_t *insert = bson_new();
   bson_error_t error;
   std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
@@ -686,7 +641,7 @@ void FeatureBuffer::addBuffer(const std::string &faceToken, std::shared_ptr<Face
   faceBuffers[inx].insert(std::make_pair(faceToken, buffer));
   #endif
 }
-
+#if 0
 int BaiduFaceApiBuffer::init(int bufferNums) {
   for (int i = 0; i < bufferNums; i++) {
     auto api = getInitApi();
@@ -707,7 +662,9 @@ std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::getInitApi() {
     return nullptr;
   }
   api->set_min_face_size(1);
+
   return api;
+  return nullptr;
 }
 
 std::shared_ptr<BaiduFaceApi> BaiduFaceApiBuffer::borrowBufferedApi() {
@@ -728,7 +685,6 @@ void BaiduFaceApiBuffer::offerBufferedApi(std::shared_ptr<BaiduFaceApi> api) {
   }
   apis_.push_back(api);
 }
-
 int FaceApiBuffer::init(int bufferNums) {
   for (int i = 0; i < bufferNums; i++) {
     auto api = getInitApi();
@@ -762,5 +718,5 @@ void FaceApiBuffer::offerBufferedApi(std::shared_ptr<FaceApi> api) {
   }
   apis_.push_back(api);
 }
-
+#endif
 }

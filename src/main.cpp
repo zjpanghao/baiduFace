@@ -7,13 +7,10 @@
 #include <iterator>
 #include <thread>
 #include "opencv2/opencv.hpp"
-#include "baidu_face_api.h"
 #include "image_base64.h"
 #include "cv_help.h"
 #include "json/json.h"
-#include "liveness.h"
 #include "compare.h"
-#include "setting.h"
 #include <chrono>
 #include "image_buf.h"
 #include "glog/logging.h"
@@ -123,7 +120,7 @@ int main(int argc, char *argv[]) {
   
   ev_server_start_multhread(port, threadNum); 
   while (1) {
-    sleep(10000);
+    ::sleep(10000);
   }
   return 0;
 }

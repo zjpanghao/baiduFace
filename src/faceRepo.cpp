@@ -10,6 +10,7 @@
 //#define DEFAULT_SAVE_NAME "faces.db"
 //facelib db
 #define DEFAULT_SAVE_NAME dbNameG
+#define FACE_LIB  "face_lib_new"
 
 namespace kface {
 static mongoc_client_pool_t *poolG = NULL;
@@ -90,7 +91,7 @@ void flushFaces() {
 static void loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
   mongoc_client_t *client = mongoc_client_pool_pop(poolG);
   LOG(ERROR) << "load from" << name;
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, name.c_str(), "face_lib");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, name.c_str(), FACE_LIB);
   bson_t *query = bson_new();
   const bson_t *doc = NULL;
   mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(collection, query, NULL, NULL);
@@ -128,8 +129,8 @@ static void loadPersonFaces(const std::string &name, std::list<PersonFace> &face
     len = 0;
     data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
     
-    if (len == 512 * sizeof(float)) {
-      face.image->feature.assign((float*)&data[0], (float*)&data[0] + 512);
+    if (len == 128 * sizeof(float)) {
+      face.image->feature.assign((float*)&data[0], (float*)&data[0] + 128);
     } else {
       LOG(ERROR) << "decode len:" << len;
       continue;
@@ -147,7 +148,7 @@ QUERY_END:
 int repoAddUserFace(const PersonFace &face) {
   int rc = 0;
   mongoc_client_t *client = mongoc_client_pool_pop(poolG);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, "face_lib");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, FACE_LIB);
   bson_t *insert = bson_new();
   bson_error_t error;
   std::string featureBase64 = ImageBase64::encode((unsigned char*)&face.image->feature[0], 
@@ -171,7 +172,7 @@ int repoAddUserFace(const PersonFace &face) {
 int repoDelUserFace(const PersonFace &face) {
   int count = 0;
   mongoc_client_t *client = mongoc_client_pool_pop(poolG);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, "face_lib");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, FACE_LIB);
   bson_t *query = bson_new();
   bson_error_t error;
   mongoc_cursor_t *cursor = NULL;
@@ -200,7 +201,7 @@ int repoDelUserFace(const PersonFace &face) {
 int repoDelUser(const PersonFace &face) {
   int count = 0;
   mongoc_client_t *client = mongoc_client_pool_pop(poolG);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, "face_lib");
+  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbNameG, FACE_LIB);
   bson_t *query = bson_new();
   bson_error_t error;
   mongoc_cursor_t *cursor = NULL;

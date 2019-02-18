@@ -5,7 +5,6 @@
 
 #include <string>
 #include <vector>
-#include "baidu_face_api.h"
 #include <pthread.h>
 #include <unistd.h>
 #include <mutex>
@@ -13,6 +12,7 @@
 #include <mongoc/mongoc.h>
 #include "face/faceApi.h"
 #include <condition_variable>
+#include "apipool/apiPool.h"
 
 namespace kface {
 
@@ -65,7 +65,7 @@ struct FaceDetectResult {
   std::shared_ptr<FaceQuality> quality;
   Location location;
   double score;
-  std::shared_ptr<TrackFaceInfo> trackInfo;
+  //std::shared_ptr<TrackFaceInfo> trackInfo;
 };
 
 struct FaceSearchResult {
@@ -74,7 +74,7 @@ struct FaceSearchResult {
   std::string userName;
   double score;
 };
-
+#if 0
 class BaiduFaceApiBuffer {
  public:
   BaiduFaceApiBuffer() {
@@ -121,7 +121,6 @@ class BaiduApiWrapper {
    std::shared_ptr<BaiduFaceApi> api_{nullptr};
    BaiduFaceApiBuffer &buffers_;
 };
-
 class FaceApiBuffer {
  public:
   FaceApiBuffer() {
@@ -169,6 +168,7 @@ class FaceApiWrapper {
    std::shared_ptr<FaceApi> api_{nullptr};
    FaceApiBuffer &buffers_;
 };
+#endif
 
 class FeatureBuffer {
   enum BufferType {
@@ -262,7 +262,7 @@ class FaceService {
   }
 
  private:
-  int search(std::shared_ptr<BaiduFaceApi> api,
+  int search(std::shared_ptr<FaceApi> api,
       const std::set<std::string> &groupIds, 
       const std::vector<float> &feature,
       int num,
@@ -272,19 +272,20 @@ class FaceService {
   
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, 
                                        int len, 
-                                       std::shared_ptr<BaiduFaceApi> api);
+                                       std::shared_ptr<FaceApi> api);
                                        
   std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, int len);
   
   std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, 
                                                 int len,
-                                                std::shared_ptr<BaiduFaceApi> api);
+                                                std::shared_ptr<FaceApi> api);
   /*load facelib*/
   int initAgent();
   /* baiduapi buffer*/                                             
-  BaiduFaceApiBuffer apiBuffers_;
+  // BaiduFaceApiBuffer apiBuffers_;
 
-  FaceApiBuffer faceApiBuffer_;
+  //FaceApiBuffer faceApiBuffer_;
+  ApiBuffer<FaceApi> faceApiBuffer_;
 
   std::shared_ptr<FaceApi> faceApi_;
   /*face feature buffer ordered by faceToken, clear by day*/

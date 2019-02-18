@@ -177,7 +177,7 @@ void test_opencv_video()
 }
 
 // 测试入口函数
-int main()
+int main(int argc, char*argv[])
 {
     std::cout << "in main" << std::endl;
 
@@ -190,6 +190,7 @@ int main()
     std::cout<<"in main init"<<std::endl;
     bool id_card = false;
     api->sdk_init(id_card);
+    api->set_min_face_size(1);
     std::cout<<"in main after init"<<std::endl;
     std::time_t time_begin = get_timestamp();
     // 时间戳
@@ -202,13 +203,15 @@ int main()
     // test_face_attr(api);
     // 测试图片质量 
    // test_face_quality(api);
-
+    std::vector<TrackFaceInfo> *info = new std::vector<TrackFaceInfo>();
+    int n = api->track(info, argv[1], 2, 20);
+    std::cout << "detect :" << n << std::endl;
     // 测试对比
-    test_compare(api);
+    //test_compare(api);
     // 测试人脸检测
     //test_liveness_track(api);
    // 测试获取设备id
-    test_get_device_id(api);
+   // test_get_device_id(api);
    // 测试是否授权
     test_is_auth(api);
     std::time_t time_end = get_timestamp();
