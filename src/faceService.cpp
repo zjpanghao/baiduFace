@@ -97,7 +97,13 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
     result.attr = getAttr(&childImage[0], childImage.size(), api);
+    if (result.attr == nullptr) {
+      continue;
+    }
     result.quality = faceQuality(&childImage[0], childImage.size(), api);
+    if (result.quality == nullptr) {
+      continue;
+    }
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
