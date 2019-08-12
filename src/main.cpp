@@ -57,7 +57,9 @@ int main(int argc, char *argv[]) {
   int port;
   ss >> port;
   std::string name(argv[0]);
-  daemon(1, 0);
+  if (argc == 2 && strcmp(argv[2], "-d") == 0) {
+    daemon(1, 0);
+  }
   initGlog(name);
   FaceService &service = FaceService::getFaceService();
   
