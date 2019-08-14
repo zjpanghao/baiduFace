@@ -24,9 +24,11 @@
 #include <sys/prctl.h>
 #include <signal.h>
 #include "faceAgent.h"
-#include "faceRepo.h"
+#include "faceRepoSql.h"
 #include "faceService.h"
 #include "config/config.h"
+#include "datasource/dataSource.h"
+#include "db/dbpool.h"
 #include <mongoc/mongoc.h>
 
 
@@ -57,7 +59,7 @@ int main(int argc, char *argv[]) {
   int port;
   ss >> port;
   std::string name(argv[0]);
-  if (argc == 2 && strcmp(argv[2], "-d") == 0) {
+  if (argc == 2 && strcmp(argv[1], "-d") == 0) {
     daemon(1, 0);
   }
   initGlog(name);
@@ -65,7 +67,7 @@ int main(int argc, char *argv[]) {
   
   ss.clear();
   ss.str("");
-  #if 0
+  #if 1
   ss << config.get("redis", "port");
   int redisPort;
   ss >> redisPort;
@@ -90,27 +92,16 @@ int main(int argc, char *argv[]) {
   // mongo
   ss.clear();
   ss.str("");
-  ss << config.get("mongo", "uri");
-  std::string uriString(ss.str());
- 
-  ss.clear();
-  ss.str("");
-  ss << config.get("mongo", "db");
-  std::string dbName(ss.str());
   //const char *uri_string = "mongodb://test:123456@192.168.1.111:27017/test";
-  bson_error_t error;
-  mongoc_uri_t *uri = mongoc_uri_new_with_error(uriString.c_str(), &error);
-  if (!uri) {
-     LOG(ERROR) << "create mongo poll error" << error.message;
-     return -1;
-  }
-  mongoc_client_pool_t *pool = mongoc_client_pool_new(uri);
-  if (!pool) {
-    LOG(ERROR) << "create mongo poll error";
+  DataSource dataSource(config);
+  std::shared_ptr<DBPool> pool = std::make_shared<DBPool> ();
+  if (pool->PoolInit(&dataSource) < 0) {
+    LOG(ERROR) << "create db  pool error";
     return -1;
   }
   
-  if (0 !=service.init(pool, dbName, faceLib == "true")) {
+  if (0 !=service.init(pool, redisPool, "", faceLib == "true")) {
+    LOG(ERROR) << "init error";
     return -1;
   }
   

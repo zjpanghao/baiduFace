@@ -6,5 +6,14 @@ struct ImageFace {
   std::string faceToken;
   std::vector<float> feature;
 };
+
+struct PersonFace {
+  std::string appName;
+  std::string groupId;
+  std::string userId;
+  std::string userName;
+  std::shared_ptr<ImageFace> image;
+};
+
 }
 #endif

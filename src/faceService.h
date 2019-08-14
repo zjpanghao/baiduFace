@@ -9,8 +9,10 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <mutex>
-#include "predis/redis_pool.h"
 #include <mongoc/mongoc.h>
+#include "predis/redis_pool.h"
+#include "db/dbpool.h"
+#include "faceRepoSql.h"
 
 namespace kface {
 
@@ -128,13 +130,6 @@ class FeatureBuffer {
     redisPool_ = redisPool;
     type_ = BufferType::REDIS;
   }
-
-  FeatureBuffer(mongoc_client_pool_t *mpool, const std::string &dbName)
-    : mongoPool_(mpool),
-      type_(BufferType::MONGO),
-      dbName_(dbName) {
- 
-  }
   
   std::shared_ptr<FaceBuffer> getBuffer(const std::string &faceToken);
   void addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
@@ -147,7 +142,6 @@ class FeatureBuffer {
   int getBufferIndex(); 
   //std::map<std::string, std::shared_ptr<FaceBuffer> > faceBuffers[2];
   std::shared_ptr<RedisPool> redisPool_{nullptr}; 
-  mongoc_client_pool_t *mongoPool_{NULL};
   std::mutex lock_;
   BufferType type_;
   std::string dbName_{""};
@@ -157,8 +151,9 @@ class FaceService {
  public:
   static FaceService& getFaceService();
   FaceService();
-  /* init baiduapi(now only support one instance), facelib*/
-  int init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib);
+  int init(std::shared_ptr<DBPool> pool, 
+      std::shared_ptr<RedisPool> redisPool,
+      const std::string &dbName, bool initFaceLib);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,
@@ -208,6 +203,7 @@ class FaceService {
   void setFeatureBuffer(std::shared_ptr<FeatureBuffer>         featureBuffer) {
     featureBuffers_ = featureBuffer;
   }
+  std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, int len);
 
  private:
   int search(std::shared_ptr<BaiduFaceApi> api,
@@ -216,7 +212,7 @@ class FaceService {
       int num,
       std::vector<FaceSearchResult> &result);
       
-  std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, int len);
+
   
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, 
                                        int len, 
@@ -233,6 +229,8 @@ class FaceService {
   BaiduFaceApiBuffer apiBuffers_;
   /*face feature buffer ordered by faceToken, clear by day*/
   std::shared_ptr<FeatureBuffer>  featureBuffers_{nullptr}; 
+
+  std::shared_ptr<FaceLibRepo> faceLibRepo_;
  
   /*facelib lock*/
   pthread_rwlock_t faceLock_; 

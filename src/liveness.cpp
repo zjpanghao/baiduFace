@@ -163,17 +163,13 @@ void Liveness::image_track_face_info(BaiduFaceApi *api)
 void Liveness::image_track_face_info_by_buf(BaiduFaceApi *api)
 {
     std::string out_buf;
-    int buf_len = ImageBuf::get_buf("1.jpg", out_buf);
+    int buf_len = ImageBuf::get_buf("2.jpg", out_buf);
 
     cv::RotatedRect box;
     std::vector<TrackFaceInfo> *track_info = new std::vector<TrackFaceInfo>();
 
    // track_info->clear();
-   int size = 0;
-   api->set_min_face_size(10);
-   for (int i = 0; i < 1; i++) {
-     size = api->track_by_buf(track_info, (unsigned char*)out_buf.c_str(), buf_len, 5);
-   }
+    int size = api->track_by_buf(track_info, (unsigned char*)out_buf.c_str(), buf_len, 1);
     if (size > 0)
     {
         for (int i = 0; i < size; i++)

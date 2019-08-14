@@ -214,7 +214,7 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     Json::Value item;
     item["user_id"] = result.userId;
     item["score"] = result.score;
-    item["user_info"] = "";
+    item["user_info"] = result.userName;
     item["group_id"] = result.groupId;
     items.append(item);
     content["user_list"] = items;

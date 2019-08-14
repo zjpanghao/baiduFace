@@ -4,7 +4,7 @@
 #include "image_base64.h"
 #include "md5.h"
 #include "faceAgent.h"
-#include "faceRepo.h"
+#include "faceRepoSql.h"
 #include <glog/logging.h>
 #include <regex>
 #include <iterator>
@@ -28,6 +28,7 @@ FaceService::FaceService() {
 
 int FaceService::initAgent() {
   pthread_rwlock_init(&faceLock_, NULL);
+#if 0
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
   repoLoadPersonFaces(faces);
@@ -35,16 +36,16 @@ int FaceService::initAgent() {
   for (PersonFace &face : faces) {
     faceAgent.addPersonFace(face);
   }
+#endif
   return 0;
 }
 
-int FaceService::init(mongoc_client_pool_t *mpool, const std::string &dbName, bool initFaceLib) {
+int FaceService::init(std::shared_ptr<DBPool> pool, 
+                      std::shared_ptr<RedisPool> redisPool,
+                      const std::string &dbName, bool initFaceLib) {
   apiBuffers_.init(1);
-  featureBuffers_.reset(new FeatureBuffer(mpool, dbName));
-  if (initFaceLib) {
-    initRepoFaces(mpool, dbName);
-    initAgent();
-  }
+  faceLibRepo_ = std::make_shared<FaceLibRepo>(pool);
+  featureBuffers_.reset(new FeatureBuffer(redisPool));
   return 0;
 }
 
@@ -68,7 +69,6 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;
     result.trackInfo = info;
-    
     /*calculate faceRect*/
     RotatedRect rRect = CvHelp::bounding_box(info.landmarks);
     Rect rect = rRect.boundingRect();
@@ -96,13 +96,13 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
-    result.attr = getAttr(&childImage[0], childImage.size(), api);
+    result.attr = nullptr;//getAttr(&childImage[0], childImage.size(), api);
     if (result.attr == nullptr) {
-      continue;
+  //    continue;
     }
-    result.quality = faceQuality(&childImage[0], childImage.size(), api);
+    result.quality = nullptr;//faceQuality(&childImage[0], childImage.size(), api);
     if (result.quality == nullptr) {
-      continue;
+    //  continue;
     }
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
@@ -131,9 +131,8 @@ int FaceService::search(const std::set<std::string> &groupIds,
 }
 
 int FaceService::match(const std::string &faceToken,                   
-                         const std::string &faceTokenCompare,              
-                         float &score) {
-
+    const std::string &faceTokenCompare,              
+    float &score) {
   std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(faceToken);
   std::shared_ptr<FaceBuffer> featureBufferCompare = featureBuffers_->getBuffer(faceTokenCompare);
   if (featureBuffer == nullptr || featureBufferCompare == nullptr) {
@@ -229,32 +228,53 @@ int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
     std::vector<FaceSearchResult> &result) {
 
   std::vector<PersonFace> top;
-  RLockMethod rlock;
-  RWLockGuard guard(rlock, &faceLock_);
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::list<PersonFace> faces;
-  faceAgent.getDefaultPersonFaces(faces);
-
+  faceLibRepo_->loadPersonFaces("", faces);
+  LOG(INFO) << "load faces size:" << faces.size();
+  if (faces.empty()) {
+    return 0;
+  }
   /*get the highest mark of each userId*/
   std::map<std::string, float> userScore;
+  auto &similarFace = faces.front();
+  int maxScore = -1;
   for (auto &face : faces) {
     if (groupIds.count(face.groupId) == 0) {
       continue;
     }
     float score = api->compare_feature(face.image->feature, feature);
-    std::string key = face.groupId + "_" +face.userId; 
-    if (userScore[key] < score)  {
-      userScore[key] = score;
+    if (num == 1) {
+      if (score > maxScore) {
+        maxScore = score;
+        similarFace = face;
+      }
+    } else {
+      std::string key = face.groupId + "_" +face.userId; 
+      if (userScore[key] < score)  {
+        userScore[key] = score;
+      }
     }
+  }
+
+  if (num == 1) {
+    if (maxScore > 0) {
+      FaceSearchResult tmp;
+      tmp.groupId = similarFace.groupId;
+      tmp.userId = similarFace.userId;
+      tmp.score = maxScore;
+      tmp.userName = similarFace.userName;
+      result.push_back(tmp);
+    }
+    return 0;
   }
 
   /* find the top num marks*/
   std::vector<std::pair<std::string,float>>  topPair(userScore.begin(), userScore.end());
   std::partial_sort(topPair.begin(), 
-                    num > topPair.size() ? topPair.end() : topPair.begin() + num, 
-                    topPair.end(),
-                    [](const std::pair<std::string, float> &a, const std::pair<std::string, float>  &b) {
-                    return a.second > b.second;});
+      num > topPair.size() ? topPair.end() : topPair.begin() + num, 
+      topPair.end(),
+      [](const std::pair<std::string, float> &a, const std::pair<std::string, float>  &b) {
+      return a.second > b.second;});
   for (auto &p : topPair) {
     if (--num < 0) {
       return 0;
@@ -300,6 +320,7 @@ std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data,
   }
   std::shared_ptr<FaceAttr> attr;
   std::string result =  api->face_attr_by_buf(data, len);
+  LOG(INFO) << result;
   Json::Value root;
   Json::Reader reader;;
   if (true == reader.parse(result, root)) {
@@ -383,27 +404,11 @@ int FaceService::addUserFace(const std::string &groupId,
   face.image.reset(new ImageFace());
   face.image->feature= featureBuffer->feature;
   face.image->faceToken = result.faceToken;
-  WLockMethod wlock;
-  RWLockGuard guard(wlock, &faceLock_);
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
-  std::map<std::string, std::shared_ptr<ImageFace>> faceMap;
-  faceAgent.getUserFaces(DEFAULT_APP_NAME, groupId, userId, faceMap);
-  if (faceMap.count(result.faceToken) > 0 || faceMap.size() >= 5) {
-    LOG(ERROR) << "already contain picture or picture size max then 5" << result.faceToken;
-    return -10;
-  }
-  if (0 != repoAddUserFace(face)) {
+  if (0 != faceLibRepo_->addUserFace(face)) {
     LOG(ERROR) << "repo add userface error";
     return -9;
   }
-
-  int rc = faceAgent.addPersonFace(face);
-  if (rc == 0) {
-    flushFaces();
-  }
-  faceToken = face.image->faceToken;
-  LOG(INFO) << "add face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
-  return rc;
+  return 0;
 }
 
 int FaceService::updateUserFace(const std::string &groupId,
@@ -444,27 +449,24 @@ int FaceService::updateUserFace(const std::string &groupId,
   RWLockGuard guard(wlock, &faceLock_);
   FaceAgent &faceAgent = FaceAgent::getFaceAgent();
   std::map<std::string, std::shared_ptr<ImageFace>> faceMap;
-  int count = repoDelUser(face);
-  LOG(INFO) << "repoDel: " << count;
-  if (count < 0) {
+  int rc = faceLibRepo_->delUser(face);
+  LOG(INFO) << "repoDel: " << rc;
+  if (rc < 0) {
     return -5;
   }
 
-  int rc = faceAgent.delPerson(face);
-  if (rc != 0) {
+  rc = faceAgent.delPerson(face);
+  if (rc < 0) {
     LOG(ERROR) << "delete person :" << face.userId << " error";
     return - 4;
   }
   
-  if (repoAddUserFace(face) < 0) {
+  if (faceLibRepo_->addUserFace(face) < 0) {
     LOG(ERROR) << "repo add user face error";
     return -6;
   }
  
   rc = faceAgent.addPersonFace(face);
-  if (rc == 0) {
-    flushFaces();
-  }
   updateResult.faceToken = face.image->faceToken;
   updateResult.location = result.location;
   LOG(INFO) << "add face token:" << face.image->faceToken << "userId" << userId <<  "rc:" << rc;
@@ -484,15 +486,12 @@ int FaceService::delUserFace(const std::string &groupId,
   WLockMethod wlock;
   RWLockGuard guard(wlock, &faceLock_);
   int count = 0;
-  if ((count = repoDelUserFace(face)) <= 0) {
+  if ((count = faceLibRepo_->delUserFace(face)) <= 0) {
     LOG(ERROR) << "repo del face error" << count;
     return -5;
   }
   FaceAgent &agent = FaceAgent::getFaceAgent();
   rc = agent.delPersonFace(face);
-  if (rc == 0) {
-    flushFaces();
-  }
   LOG(INFO) << "del face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
   return rc;
 }
@@ -506,16 +505,13 @@ int FaceService::delUser(const std::string &groupId,
   face.userId = userId;
   WLockMethod wlock;
   RWLockGuard guard(wlock, &faceLock_);
-  int count = repoDelUser(face);
-  LOG(ERROR) << "repo del user:" << count;
-  if (count < 0) {
+  rc = faceLibRepo_->delUser(face);
+  LOG(ERROR) << "repo del user:" << rc;
+  if (rc < 0) {
     return -1;
   }
   FaceAgent &agent = FaceAgent::getFaceAgent();
   rc = agent.delPerson(face);
-  if (rc == 0) {
-    flushFaces();
-  }
   LOG(INFO) << "del user  userId" << userId <<  "rc:" << rc;
   return rc;
 }
@@ -529,47 +525,7 @@ int FeatureBuffer::getBufferIndex() {
 }
 
 std::shared_ptr<FaceBuffer> FeatureBuffer::getMongoBuffer(const std::string &faceToken) {
-  mongoc_client_t *client = mongoc_client_pool_pop(mongoPool_);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), "face_feature");
-  bson_t *query = BCON_NEW("face_token", faceToken.c_str());
-  const bson_t *doc = NULL;
-  mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(collection, query, NULL, NULL);
-  char *result = NULL;
-  std::shared_ptr<FaceBuffer> buffer;
-  std::string featureBase64;
-  Json::Value root;
-  Json::Reader reader;
-  int len = 0;
-  std::string data;
-  while (mongoc_cursor_next(cursor, &doc)) {
-    result = bson_as_json(doc, NULL);
-    break;
-  }
-  if (!result) {
-    goto QUERY_END;
-  }
-  if (!reader.parse(result, root)) {
-    goto QUERY_END;
-  }
-  featureBase64 = root["feature"].asString();
-  if (featureBase64.empty()) {
-    goto QUERY_END;
-  }
-  data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
-  if (len == 512 * sizeof(float)) {
-    buffer.reset(new FaceBuffer());
-    buffer->feature.assign((float*)&data[0], (float*)&data[0] + 512);
-  }
-  
-QUERY_END:
-  if (result) {
-    bson_free(result);
-  }
-  bson_destroy(query);
-  mongoc_cursor_destroy (cursor);
-  mongoc_collection_destroy(collection);
-  mongoc_client_pool_push(mongoPool_, client);
-  return buffer;
+  return nullptr;
 }
 
 std::shared_ptr<FaceBuffer> FeatureBuffer::getRedisBuffer(const std::string &faceToken) {
@@ -624,19 +580,6 @@ void FeatureBuffer::addRedisBuffer(const std::string &faceToken, std::shared_ptr
 
 void FeatureBuffer::addMongoBuffer(const std::string &faceToken, 
                                           std::shared_ptr<FaceBuffer> buffer) {
-  mongoc_client_t *client = mongoc_client_pool_pop(mongoPool_);
-  mongoc_collection_t *collection = mongoc_client_get_collection(client, dbName_.c_str(), "face_feature");
-  bson_t *insert = bson_new();
-  bson_error_t error;
-  std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
-  BSON_APPEND_UTF8(insert, "feature", featureBase64.c_str());
-  BSON_APPEND_UTF8(insert, "face_token", faceToken.c_str());
-  if (!mongoc_collection_insert_one(collection, insert, NULL, NULL, &error)) {
-    LOG(ERROR) << error.message;
-  }
-  bson_destroy(insert);
-  mongoc_collection_destroy(collection);
-  mongoc_client_pool_push(mongoPool_, client);
 }
 
 void FeatureBuffer::addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer) {

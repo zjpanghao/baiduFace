@@ -309,7 +309,8 @@ void Compare::compare_feature(BaiduFaceApi *api)
         return;
     }
     v_feature2.assign(f2, f2 + count2);
-   float score = api->compare_feature(v_feature1, v_feature2);
-   std::cout << "compare score is:" << score << std::endl;
+
+    float score = api->compare_feature(v_feature1, v_feature2);
+    std::cout << "compare score is:" << score << std::endl;
 }
 

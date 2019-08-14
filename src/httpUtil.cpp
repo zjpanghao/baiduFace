@@ -77,8 +77,8 @@
 #include <glog/logging.h>
 #include <iterator>
 #include <regex>
-#include "faceAgent.h"
-#include "faceService.h"
+//#include "faceAgent.h"
+//#include "faceService.h"
 
 void sendResponse(int errorCode, 
     std::string msg,  

@@ -112,7 +112,7 @@ void test_compare(BaiduFaceApi* api)
 {
     Compare *comptr = new Compare();
     //1:1对比
-    // comptr->match(api);
+     comptr->match(api);
    
     //图片和视频对比
    // comptr->match_by_img_and_frame(api, "1.jpg");
@@ -121,9 +121,9 @@ void test_compare(BaiduFaceApi* api)
    // comptr->get_face_feature_by_frame(api);
     // comptr->get_face_feature_by_buf(api);
      //特征值比较
-     comptr->compare_feature(api);
+    // comptr->compare_feature(api);
     // 测试获取特征值及特征值比较(比较综合，可根据参数不同比较)
-    //comptr->get_face_feature_and_match(api);
+    // comptr->get_face_feature_and_match(api);
     delete comptr;
 }
 
@@ -136,7 +136,7 @@ void test_liveness_track(BaiduFaceApi* api)
    //  liveptr->usb_track_face_info(api);
    
     // 对单张图片进行检测人脸信息 
-    //liveptr->image_track_face_info(api);
+    liveptr->image_track_face_info(api);
     // 对二进制图片进行检测人脸信息
     liveptr->image_track_face_info_by_buf(api);
      delete liveptr;
@@ -199,14 +199,14 @@ int main()
     std::string res = "";
    
     // 测试人脸属性
-    // test_face_attr(api);
+     test_face_attr(api);
     // 测试图片质量 
    // test_face_quality(api);
 
     // 测试对比
-    test_compare(api);
+  //  test_compare(api);
     // 测试人脸检测
-    //test_liveness_track(api);
+   // test_liveness_track(api);
    // 测试获取设备id
     test_get_device_id(api);
    // 测试是否授权
@@ -214,7 +214,6 @@ int main()
     std::time_t time_end = get_timestamp();
     std::cout<<"time end is:"<<time_end<<std::endl;
     std::cout << "time  cost is :" << time_end - time_begin <<" ms"<< std::endl;
-    return 0;
     delete api;
    // getchar();
     return 0;
