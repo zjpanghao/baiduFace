@@ -197,28 +197,22 @@ int FaceService::matchImage(const std::string &image64,
 }
 
 int FaceService::searchByImage64(const std::set<std::string> &groupIds, 
-                                        const std::string &imageBase64, 
-                                        int num,
-                                        std::vector<FaceSearchResult> &searchResult) {
-
-  BaiduApiWrapper baidu(apiBuffers_);
-  auto api = baidu.getApi();
-  if (api == nullptr) {
+    const std::string &imageBase64, 
+    int num,
+    std::vector<FaceSearchResult> &searchResult) {
+  int len = 0;
+  std::string data = ImageBase64::decode(imageBase64.c_str(), imageBase64.length(), len);
+  if (len < 10) {
     return -1;
   }
-  const float *feature = nullptr;
-  struct timeval tv[2];
-  gettimeofday(&tv[0], NULL);
-  int count = api->get_face_feature(imageBase64.c_str(), 1, feature);
-  gettimeofday(&tv[1], NULL);
-  LOG(INFO) << tv[0].tv_sec << "  " << tv[0].tv_usec;
-  LOG(INFO) << tv[1].tv_sec << "  " << tv[1].tv_usec;
-  if (count != 512) {
-    return -2;
+  std::vector<unsigned char> vdata((unsigned char*)&data[0], (unsigned char*)&data[len]);
+  std::vector<FaceDetectResult> detectResult;
+  int rc = detect(vdata, 1, detectResult);
+  if (rc < 0 || detectResult.size() != 1) {
+    LOG(ERROR) << "detect face error" << "rc:" << rc;
+    return -1;
   }
-  std::vector<float> data;
-  data.assign(feature, feature + 512);
-  return search(api, groupIds, data, num, searchResult);
+  return search(groupIds, detectResult[0].faceToken, 1, searchResult);
 }
             
 int FaceService::search(std::shared_ptr<BaiduFaceApi> api,
@@ -473,7 +467,9 @@ std::shared_ptr<FaceBuffer> FeatureBuffer::getRedisBuffer(const std::string &fac
     return nullptr;
   }
   std::string featureBase64;
-  control->GetHashValue(BAIDU_FEATURE_KEY, faceToken, &featureBase64);
+  std::string key = BAIDU_FEATURE_KEY;
+  key += faceToken;
+  control->GetValue(key, &featureBase64);
   if (featureBase64.empty()) {
     return nullptr;
   }
@@ -513,7 +509,9 @@ void FeatureBuffer::addRedisBuffer(const std::string &faceToken, std::shared_ptr
     return;
   }    
   std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
-  control->SetHashValue(BAIDU_FEATURE_KEY, faceToken, featureBase64);
+  std::string key = BAIDU_FEATURE_KEY;
+  key += faceToken;
+  control->SetExValue(key, 60, featureBase64);
 }
 
 void FeatureBuffer::addMongoBuffer(const std::string &faceToken, 
