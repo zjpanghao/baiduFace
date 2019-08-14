@@ -134,7 +134,7 @@ END:
     END_TRY;
 END:
     pool_->returnConnection(conn);
-
+    return rc;
   }
 
 }// namespace FaceLibRepo
