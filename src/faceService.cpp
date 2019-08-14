@@ -417,60 +417,7 @@ int FaceService::updateUserFace(const std::string &groupId,
     const std::string &dataBase64,
     FaceUpdateResult &updateResult) {
   int len = 0;
-  updateResult.faceToken = "";
-  std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
-  if (len < 10) {
-    return -1;
-  }
-  PersonFace face;
-  face.appName = DEFAULT_APP_NAME;
-  face.groupId = groupId;
-  face.userId = userId;
-  face.userName = userName;
-  const float *feature = nullptr;
-  std::vector<unsigned char> mdata(&data[0], &data[0] + len);
-  std::vector<FaceDetectResult> results;
-  if (0 != detect(mdata, 1, results)) {
-    return -1;
-  }
-  if (results.size() != 1) {
-    return -2;
-  }
-  
-  FaceDetectResult &result = results[0];
-  std::shared_ptr<FaceBuffer> featureBuffer = featureBuffers_->getBuffer(result.faceToken);
-  if (featureBuffer == nullptr) {
-    return -3;
-  }
-  face.image.reset(new ImageFace());
-  face.image->feature= featureBuffer->feature;
-  face.image->faceToken = result.faceToken;
-  WLockMethod wlock;
-  RWLockGuard guard(wlock, &faceLock_);
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
-  std::map<std::string, std::shared_ptr<ImageFace>> faceMap;
-  int rc = faceLibRepo_->delUser(face);
-  LOG(INFO) << "repoDel: " << rc;
-  if (rc < 0) {
-    return -5;
-  }
-
-  rc = faceAgent.delPerson(face);
-  if (rc < 0) {
-    LOG(ERROR) << "delete person :" << face.userId << " error";
-    return - 4;
-  }
-  
-  if (faceLibRepo_->addUserFace(face) < 0) {
-    LOG(ERROR) << "repo add user face error";
-    return -6;
-  }
- 
-  rc = faceAgent.addPersonFace(face);
-  updateResult.faceToken = face.image->faceToken;
-  updateResult.location = result.location;
-  LOG(INFO) << "add face token:" << face.image->faceToken << "userId" << userId <<  "rc:" << rc;
-  return rc;
+  return -1;
 }
 
 int FaceService::delUserFace(const std::string &groupId,
@@ -483,15 +430,10 @@ int FaceService::delUserFace(const std::string &groupId,
   face.userId = userId;
   face.image.reset(new ImageFace());
   face.image->faceToken = faceToken;
-  WLockMethod wlock;
-  RWLockGuard guard(wlock, &faceLock_);
-  int count = 0;
-  if ((count = faceLibRepo_->delUserFace(face)) <= 0) {
-    LOG(ERROR) << "repo del face error" << count;
+  if ((rc = faceLibRepo_->delUserFace(face)) < 0) {
+    LOG(ERROR) << "repo del face error" << rc;
     return -5;
   }
-  FaceAgent &agent = FaceAgent::getFaceAgent();
-  rc = agent.delPersonFace(face);
   LOG(INFO) << "del face token:" << faceToken << "userId" << userId <<  "rc:" << rc;
   return rc;
 }
@@ -503,15 +445,11 @@ int FaceService::delUser(const std::string &groupId,
   face.appName = DEFAULT_APP_NAME;
   face.groupId = groupId;
   face.userId = userId;
-  WLockMethod wlock;
-  RWLockGuard guard(wlock, &faceLock_);
   rc = faceLibRepo_->delUser(face);
-  LOG(ERROR) << "repo del user:" << rc;
   if (rc < 0) {
+    LOG(ERROR) << "repo del user:" << rc;
     return -1;
   }
-  FaceAgent &agent = FaceAgent::getFaceAgent();
-  rc = agent.delPerson(face);
   LOG(INFO) << "del user  userId" << userId <<  "rc:" << rc;
   return rc;
 }
