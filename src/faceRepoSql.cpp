@@ -21,7 +21,8 @@ namespace kface {
     int len = 0;
     const char *feature = NULL;
     std::string data;
-    Connection_T conn = pool_->GetConnection();
+    Connection_T conn; // pool_->GetConnection();
+    DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
     }
@@ -33,9 +34,11 @@ namespace kface {
     } CATCH(SQLException) {
       LOG(ERROR) << "get chat error:" << Exception_frame.message;
       rc = -1;
-      goto END;
     }
     END_TRY;
+    if (rc != 0) {
+      return rc;
+    }
     while (ResultSet_next(r)) {
       PersonFace face;
       face.groupId = ResultSet_getString(r, 1);
@@ -52,14 +55,13 @@ namespace kface {
       face.image->feature.assign((float*)&vec[0], (float*)(&vec[FACE_VEC_SIZE* sizeof(float)]));
       faces.push_back(face);
     }
-END:
-    pool_->returnConnection(conn);
     return rc;
   }
 
   int FaceLibRepo::addUserFace(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn = pool_->GetConnection();
+    Connection_T conn;//pool_->GetConnection();
+    DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
     }
@@ -80,17 +82,15 @@ END:
     } CATCH(SQLException) {
       LOG(ERROR) << "insert face error" << "user_id:" << face.userId <<" "<< Exception_frame.message;
       rc = -2;
-      goto END;
     }
     END_TRY;
-END:
-    pool_->returnConnection(conn);
     return rc;
   }
 
   int FaceLibRepo::delUserFace(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn = pool_->GetConnection();
+    Connection_T conn;// = pool_->GetConnection();
+    DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
     }
@@ -105,17 +105,15 @@ END:
     } CATCH(SQLException) {
       LOG(ERROR) << "del face error" << "user_id:" << face.userId <<" "<< Exception_frame.message;
       rc = -2;
-      goto END;
     }
     END_TRY;
-END:
-    pool_->returnConnection(conn);
     return rc;
   }
 
   int FaceLibRepo::delUser(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn = pool_->GetConnection();
+    Connection_T conn;// = pool_->GetConnection();
+    DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
     }
@@ -129,11 +127,8 @@ END:
     } CATCH(SQLException) {
       LOG(ERROR) << "del user error" << "user_id:" << face.userId <<" "<< Exception_frame.message;
       rc = -2;
-      goto END;
     }
     END_TRY;
-END:
-    pool_->returnConnection(conn);
     return rc;
   }
 
