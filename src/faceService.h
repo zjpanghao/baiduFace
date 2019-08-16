@@ -13,13 +13,10 @@
 #include "predis/redis_pool.h"
 #include "db/dbpool.h"
 #include "faceRepoSql.h"
+#include <unordered_map>
 
 namespace kface {
-
-struct FaceBuffer {
-  std::vector<float> feature;
-};
-
+class FeatureBuffer;
 struct Location {
   int x;
   int y;
@@ -120,40 +117,12 @@ class BaiduApiWrapper {
    BaiduFaceApiBuffer &buffers_;
 };
 
-class FeatureBuffer {
-  enum BufferType {
-    REDIS,
-    MONGO
-  };
- public:
-  FeatureBuffer(std::shared_ptr<RedisPool> redisPool) {
-    redisPool_ = redisPool;
-    type_ = BufferType::REDIS;
-  }
-  
-  std::shared_ptr<FaceBuffer> getBuffer(const std::string &faceToken);
-  void addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
-  
- private:
-  std::shared_ptr<FaceBuffer> getRedisBuffer(const std::string &faceToken);
-  std::shared_ptr<FaceBuffer> getMongoBuffer(const std::string &faceToken);
-  void addRedisBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
-  void addMongoBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer);
-  int getBufferIndex(); 
-  //std::map<std::string, std::shared_ptr<FaceBuffer> > faceBuffers[2];
-  std::shared_ptr<RedisPool> redisPool_{nullptr}; 
-  std::mutex lock_;
-  BufferType type_;
-  std::string dbName_{""};
-};
-
 class FaceService {
  public:
   static FaceService& getFaceService();
   FaceService();
   int init(std::shared_ptr<DBPool> pool, 
-      std::shared_ptr<RedisPool> redisPool,
-      const std::string &dbName, bool initFaceLib);
+      std::shared_ptr<FeatureBuffer> featureBuffer);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,
@@ -200,9 +169,6 @@ class FaceService {
                       const std::string &faceToken,              
                       float &score);
 
-  void setFeatureBuffer(std::shared_ptr<FeatureBuffer>         featureBuffer) {
-    featureBuffers_ = featureBuffer;
-  }
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, int len);
 
  private:

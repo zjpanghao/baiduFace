@@ -9,8 +9,6 @@
 
 //#define DEFAULT_SAVE_NAME "faces.db"
 //facelib db
-static const int FACE_VEC_SIZE =512;
-#define DEFAULT_SAVE_NAME dbNameG
 
 namespace kface {
   FaceLibRepo::FaceLibRepo(std::shared_ptr<DBPool> pool):pool_(pool) {

@@ -25,6 +25,7 @@
 #include "config/config.h"
 #include <list>
 #include <chrono>
+#include "featureBufferMemory.h"
 using namespace std;
 using namespace kface;
 
@@ -265,7 +266,7 @@ int main(int argc, char *argv[]) {
     LOG(ERROR) << "create db  pool error";
     return -1;
   }
-
+#if 0
   ss << config.get("redis", "num");
   int num = 1;
   ss >> num;
@@ -287,7 +288,9 @@ int main(int argc, char *argv[]) {
                 redisPort, num, max, "3",
                 config.get("redis", "password")));
   
-  if (0 !=service.init(pool, redisPool, "", true)) {
+#endif
+  
+  if (0 !=service.init(pool, std::make_shared<FeatureBufferMemory>())) {
     LOG(ERROR) << "server init error";
     return -1;
   }

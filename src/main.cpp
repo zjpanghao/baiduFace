@@ -30,10 +30,12 @@
 #include "datasource/dataSource.h"
 #include "db/dbpool.h"
 #include <mongoc/mongoc.h>
+#include "featureBufferMemory.h"
 
 
 using kface::FaceService;
-
+using kface::FeatureBuffer;
+using kface::FeatureBufferMemory;
 extern void ev_server_start_multhread(int port, int nThread);
 
 static void initGlog(const std::string &name) {
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
   
   ss.clear();
   ss.str("");
-  #if 1
+  #if 0
   ss << config.get("redis", "port");
   int redisPort;
   ss >> redisPort;
@@ -99,8 +101,9 @@ int main(int argc, char *argv[]) {
     LOG(ERROR) << "create db  pool error";
     return -1;
   }
-  
-  if (0 !=service.init(pool, redisPool, "", faceLib == "true")) {
+  std::shared_ptr<FeatureBuffer> featureBuffer =
+    std::make_shared<FeatureBufferMemory> ();
+  if (0 !=service.init(pool, featureBuffer)) {
     LOG(ERROR) << "init error";
     return -1;
   }

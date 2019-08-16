@@ -1,6 +1,13 @@
 #ifndef INCLUDE_FACE_ENTITY_H
 #define INCLUDE_FACE_ENTITY_H
+#include <vector>
+
+#define  FACE_VEC_SIZE  512
+
 namespace kface {
+struct FaceBuffer {
+  std::vector<float> feature;
+};
 struct ImageFace {
   std::string data;
   std::string faceToken;

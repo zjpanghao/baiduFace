@@ -11,6 +11,7 @@
 #include "cv_help.h"
 #include "util.h"
 #include "predis/redis_pool.h"
+#include "featureBufferMemory.h"
 #define BAIDU_FEATURE_KEY "baiduFeature"
 #define MAX_FACE_TRACK 5
 using  cv::Mat;
@@ -28,24 +29,15 @@ FaceService::FaceService() {
 
 int FaceService::initAgent() {
   pthread_rwlock_init(&faceLock_, NULL);
-#if 0
-  FaceAgent &faceAgent = FaceAgent::getFaceAgent();
-  std::list<PersonFace> faces;
-  repoLoadPersonFaces(faces);
-  LOG(INFO) << "load persons :" << faces.size();
-  for (PersonFace &face : faces) {
-    faceAgent.addPersonFace(face);
-  }
-#endif
   return 0;
 }
 
 int FaceService::init(std::shared_ptr<DBPool> pool, 
-                      std::shared_ptr<RedisPool> redisPool,
-                      const std::string &dbName, bool initFaceLib) {
+                      std::shared_ptr<FeatureBuffer> featureBuffer) {
   apiBuffers_.init(1);
   faceLibRepo_ = std::make_shared<FaceLibRepo>(pool);
-  featureBuffers_.reset(new FeatureBuffer(redisPool));
+  featureBuffers_ = featureBuffer;
+  featureBuffers_->init();
   return 0;
 }
 
@@ -446,100 +438,6 @@ int FaceService::delUser(const std::string &groupId,
   }
   LOG(INFO) << "del user  userId" << userId <<  "rc:" << rc;
   return rc;
-}
-
-int FeatureBuffer::getBufferIndex() {
-  time_t current = time(NULL);
-  struct tm val;
-  localtime_r(&current, &val);
-  int inx = val.tm_mday % 2;
-  return inx;
-}
-
-std::shared_ptr<FaceBuffer> FeatureBuffer::getMongoBuffer(const std::string &faceToken) {
-  return nullptr;
-}
-
-std::shared_ptr<FaceBuffer> FeatureBuffer::getRedisBuffer(const std::string &faceToken) {
-  RedisControlGuard guard(redisPool_.get());
-  std::shared_ptr<RedisControl> control = guard.GetControl();
-  if (control == nullptr) {
-    return nullptr;
-  }
-  std::string featureBase64;
-  std::string key = BAIDU_FEATURE_KEY;
-  key += faceToken;
-  control->GetValue(key, &featureBase64);
-  if (featureBase64.empty()) {
-    return nullptr;
-  }
-  int len = 0;
-  std::string data = ImageBase64::decode(featureBase64.c_str(), featureBase64.length(), len);
-  if (len != 512 * sizeof(float)) {
-    return nullptr;
-  }
-  std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
-  buffer->feature.assign((float*)&data[0], (float*)&data[0] + 512);
-  return buffer;
-}
-
-
-std::shared_ptr<FaceBuffer> FeatureBuffer::getBuffer(const std::string &faceToken) {
-  if (type_ == BufferType::REDIS) {
-    return getRedisBuffer(faceToken);
-  } else if (type_ == BufferType::MONGO) {
-    return getMongoBuffer(faceToken);
-  }
-
-  #if 0
-  int inx = getBufferIndex();
-  std::lock_guard<std::mutex> guard(lock_);
-  auto it = faceBuffers[inx].find(faceToken);
-  if (it == faceBuffers[inx].end()) {
-    return nullptr;
-  }
-  return it->second;
-  #endif
-}
-
-void FeatureBuffer::addRedisBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer) {
-  RedisControlGuard guard(redisPool_.get());
-  std::shared_ptr<RedisControl> control = guard.GetControl();
-  if (control == nullptr) {
-    return;
-  }    
-  std::string featureBase64 = ImageBase64::encode((unsigned char*)&buffer->feature[0], buffer->feature.size() * sizeof(float));
-  std::string key = BAIDU_FEATURE_KEY;
-  key += faceToken;
-  control->SetExValue(key, 60, featureBase64);
-}
-
-void FeatureBuffer::addMongoBuffer(const std::string &faceToken, 
-                                          std::shared_ptr<FaceBuffer> buffer) {
-}
-
-void FeatureBuffer::addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer) {
-  std::stringstream ss;
-  if (type_ == BufferType::REDIS) {
-    addRedisBuffer(faceToken, buffer);
-  } else if (type_ == BufferType::MONGO) {
-    struct timeval tv[2];
-    gettimeofday(&tv[0], NULL);
-    addMongoBuffer(faceToken, buffer);
-    gettimeofday(&tv[1], NULL);
-    LOG(INFO) << "tv0:" << tv[0].tv_sec << "  " << tv[0].tv_usec;
-    LOG(INFO) << "tv1:" << tv[1].tv_sec << "  " << tv[1].tv_usec;
-  }
-#if 0
-  int inx = getBufferIndex();
-  int old = 1 - inx;
-  std::lock_guard<std::mutex> guard(lock_);
-  if (!faceBuffers[old].empty()) {
-    LOG(INFO) <<"clear buffer size:" <<  faceBuffers[old].size();
-    faceBuffers[old].clear();
-  }
-  faceBuffers[inx].insert(std::make_pair(faceToken, buffer));
-  #endif
 }
 
 int BaiduFaceApiBuffer::init(int bufferNums) {
