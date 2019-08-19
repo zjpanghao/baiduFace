@@ -5,6 +5,15 @@
 #define  FACE_VEC_SIZE  512
 
 namespace kface {
+struct DBPoolInfo {
+  int size;
+  int activeSize;
+  int maxSize;
+  int timeout;
+  int initSize;
+  std::string version;
+};
+
 struct FaceBuffer {
   std::vector<float> feature;
 };

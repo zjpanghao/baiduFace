@@ -8,6 +8,7 @@ namespace kface {
 void faceIdentifyCb(struct evhttp_request *req, void *arg);
 /*support image type  base64*/
 void faceDetectCb(struct evhttp_request *req, void *arg);
+void faceDebugCb(struct evhttp_request *req, void *arg);
 void initFaceControl(std::vector<HttpControl> &controls); 
 }
 

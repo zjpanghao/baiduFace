@@ -20,6 +20,9 @@ class FaceLibRepo {
     int  delUserFace(const PersonFace &face);
     int  addUserFace(const PersonFace &face);
     int  delUser(const PersonFace &face);
+    std::shared_ptr<DBPool> getPool() {
+      return pool_;
+    }
 
   private:
     std::shared_ptr<DBPool> pool_;

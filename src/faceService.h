@@ -171,6 +171,13 @@ class FaceService {
 
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, int len);
 
+  std::shared_ptr<DBPoolInfo> getPoolInfo() {
+    std::shared_ptr<DBPoolInfo> info = std::make_shared<DBPoolInfo> ();
+    faceLibRepo_->getPool()->PoolSizeGet(info->size);
+    faceLibRepo_->getPool()->PoolActiveSizeGet(info->activeSize);
+    return info;
+  }
+
  private:
   int search(std::shared_ptr<BaiduFaceApi> api,
       const std::set<std::string> &groupIds, 

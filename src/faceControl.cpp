@@ -231,6 +231,28 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   evhttp_send_reply(req, 200, "OK", response);
 }
 
+void faceDebugCb(struct evhttp_request *req, void *arg) {
+  int rc = 0;
+  Json::Value root;
+  evbuffer *response = evbuffer_new();
+  FaceService &service = FaceService::getFaceService(); 
+  auto poolInfo = service.getPoolInfo();
+  Json::Value faceResult;
+  faceResult["error_code"] = "0";
+  Json::Value content;
+  Json::Value item;
+  if (poolInfo != nullptr) {
+    item["size"] = poolInfo->size;
+    item["score"] = poolInfo->activeSize;
+  }
+  content["pool_info"] = item;
+  faceResult["result"] = content;
+  faceResult["error_msg"] = "SUCCESS";
+  LOG(INFO) << faceResult.toStyledString();
+  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
+  evhttp_send_reply(req, 200, "OK", response);
+}
+
 static void faceMatchCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   Json::Value root;
@@ -296,6 +318,7 @@ void initFaceControl(std::vector<HttpControl> &controls) {
   std::vector<HttpControl> controlList = {
     {"/face-api/v3/face/detect", faceDetectCb},
     {"/face-api/v3/face/identify", faceIdentifyCb},
+    {"/face-api/v3/face/debug", faceDebugCb},
     {"/face-api/v3/face/match", faceMatchCb}
   };
   for (HttpControl &control : controlList) {
