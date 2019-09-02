@@ -108,7 +108,20 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       Json::Value expression;
       expression["type"] = it->attr->expression ? "smile" : "none";
       item["expression"] = expression;
+    } else {
+      Json::Value gender;
+      gender["type"] = "male";
+      gender["probability"] = 0.99;
+      item["gender"] = gender;
+      item["age"] = 30;
+      Json::Value glasses;
+      glasses["type"] = "NONE";
+      item["glasses"] = glasses;
+      Json::Value expression;
+      expression["type"] = "none";
+      item["expression"] = expression;
     }
+    
     item["face_probability"] =  it->trackInfo.score;
     Json::Value location;
     location["left"] = it->location.x;
@@ -132,6 +145,21 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
       occl["chin_contour"] = (int)it->quality->occlution.chinContour;
       quality["occlusion"] = occl;
       quality["completeness"] = it->quality->completeness;
+      item["quality"] = quality;
+    } else {
+      Json::Value quality;
+      quality["illumination"] = 100;
+      quality["blur"] = 0;
+      quality["completeness"] = 1;
+      Json::Value occl;
+      occl["left_eye"] = 0;
+      occl["right_eye"] = 0;
+      occl["left_cheek"] = 0;
+      occl["right_cheek"] = 0;
+      occl["mouth"] = 0;
+      occl["nose"] = 0.0;
+      occl["chin_contour"] = 0;
+      quality["occlusion"] = occl;
       item["quality"] = quality;
     }
 
@@ -201,7 +229,7 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   } else {
     rc = -5;
   }
-  
+
   if (rc != 0) {
     rc = -4;
     sendResponse(rc, "search error", req, response);
@@ -209,8 +237,8 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   }
   Json::Value faceResult;
   faceResult["error_code"] = "0";
-  Json::Value items;
   for (FaceSearchResult &result : resultList) {
+    Json::Value items;
     Json::Value content;
     Json::Value item;
     item["user_id"] = result.userId;
@@ -219,18 +247,23 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     item["group_id"] = result.groupId;
     items.append(item);
     content["user_list"] = items;
+    content["face_token"] = items;
     faceResult["result"] = content;
   }
-
+ 
   if (resultList.size() > 0) {
     faceResult["error_msg"] = "SUCCESS";
   } else {
+    Json::Value content;
+    faceResult["error_code"] = "222207";
     faceResult["error_msg"] = "match user is not found";
+    faceResult["result"] = content;
   }
+  
   auto end = std::chrono::steady_clock::now();
   auto dureTime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
   LOG(INFO) << "dure:" << dureTime;
-  faceResult["dure"] = dureTime;
+  //faceResult["dure"] = dureTime;
   LOG(INFO) << faceResult.toStyledString();
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);

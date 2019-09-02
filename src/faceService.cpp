@@ -10,8 +10,8 @@
 #include <iterator>
 #include "cv_help.h"
 #include "util.h"
-#include "predis/redis_pool.h"
 #include "featureBufferMemory.h"
+#include "json/json.h"
 #define BAIDU_FEATURE_KEY "baiduFeature"
 #define MAX_FACE_TRACK 5
 using  cv::Mat;
@@ -97,8 +97,8 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
-    result.attr = nullptr;
-    result.quality = nullptr;
+    result.attr = getAttr(&childImage[0], childImage.size(), baiduApi);
+    result.quality = faceQuality(&childImage[0], childImage.size(), baiduApi);;
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
@@ -387,6 +387,8 @@ int FaceService::addUserFace(const std::string &groupId,
     LOG(ERROR) << "repo add userface error";
     return -9;
   }
+  faceToken = result.faceToken;
+  LOG(INFO) << "add user sucess:" << userId << "faceToken:" << result.faceToken;
   return 0;
 }
 

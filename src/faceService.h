@@ -9,8 +9,6 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <mutex>
-#include <mongoc/mongoc.h>
-#include "predis/redis_pool.h"
 #include "db/dbpool.h"
 #include "faceRepoSql.h"
 #include <unordered_map>

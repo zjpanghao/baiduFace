@@ -29,7 +29,6 @@
 #include "config/config.h"
 #include "datasource/dataSource.h"
 #include "db/dbpool.h"
-#include <mongoc/mongoc.h>
 #include "featureBufferMemory.h"
 
 
@@ -59,7 +58,6 @@ int main(int argc, char *argv[]) {
   }
   kunyan::Config config("config.ini");
   std::string portConfig = config.get("server", "port");
-  std::string faceLib = config.get("server", "facelib");
   std::stringstream ss;
   ss << portConfig;
   int port;

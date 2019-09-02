@@ -69,9 +69,11 @@ namespace kface {
     Connection_execute(conn, "set names utf8");
     PreparedStatement_T p = Connection_prepareStatement(conn,
         "insert into face_lib(group_id, user_id, user_name, face_token, feature) values(?, ?, ?, ?, ?)");
+    LOG(INFO) << "user name" << face.userName;
+    static const char *USERNAME = "none";
     PreparedStatement_setString(p, 1, face.groupId.c_str());
     PreparedStatement_setString(p, 2, face.userId.c_str());
-    PreparedStatement_setString(p, 3, face.userName.c_str());
+    PreparedStatement_setString(p, 3, face.userName != "" ? face.userName.c_str() : USERNAME);
     PreparedStatement_setString(p, 4, face.image->faceToken.c_str());
     std::string featureBase64;
     LOG(INFO) << face.image->feature.size();

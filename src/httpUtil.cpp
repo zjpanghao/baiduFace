@@ -49,11 +49,7 @@
 #endif
 #include "event2/http_compat.h"
 #include "json/json.h"
-#include "image_base64.h"
 #include "event2/http.h"
-
-#include<opencv2/opencv.hpp>
-#include<opencv/highgui.h>
 
 #ifdef _WIN32
 #ifndef stat
@@ -87,30 +83,13 @@ void sendResponse(int errorCode,
   Json::Value root;
   std::stringstream ss;
   ss << errorCode;
-  root["error_code"] = ss.str();
+  std::string tmp;
+  tmp = ss.str();
+  root["error_code"] = tmp;
   root["error_msg"] = msg;
   std::string s = root.toStyledString();
   evbuffer_add_printf(response, "%s", s.c_str());
   LOG(ERROR) << s;
-  evhttp_send_reply(req, 200, "OK", response);
-}
-
-template<class vvalue>
-void sendResponseResult(int errorCode, 
-    std::string msg,
-    const std::map<std::string, vvalue> &paraMap,
-    struct evhttp_request *&req, 
-    evbuffer *&response) {
-  Json::Value root;
-  std::stringstream ss;
-  ss << errorCode;
-  root["error_code"] = ss.str();
-  root["error_msg"] = msg;
-  for (auto it = paraMap.begin(); it != paraMap.end(); it++) {
-    root[it->first] = it->second;
-  }
-  std::string s = root.toStyledString();
-  evbuffer_add_printf(response, "%s", s.c_str());
   evhttp_send_reply(req, 200, "OK", response);
 }
 
