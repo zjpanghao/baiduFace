@@ -159,6 +159,7 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   Json::Value root;
   int decodeLen = 0;
+  auto start = std::chrono::steady_clock::now();
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
     rc = -1;
@@ -226,6 +227,10 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   } else {
     faceResult["error_msg"] = "match user is not found";
   }
+  auto end = std::chrono::steady_clock::now();
+  auto dureTime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+  LOG(INFO) << "dure:" << dureTime;
+  faceResult["dure"] = dureTime;
   LOG(INFO) << faceResult.toStyledString();
   evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);

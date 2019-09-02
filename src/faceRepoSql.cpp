@@ -3,7 +3,6 @@
 #include "faceAgent.h"
 #include <glog/logging.h>
 #include <sstream>
-#include <mongoc/mongoc.h>
 #include "util.h"
 #include "pbase64/base64.h"
 
@@ -19,7 +18,7 @@ namespace kface {
     int len = 0;
     const char *feature = NULL;
     std::string data;
-    Connection_T conn; // pool_->GetConnection();
+    Connection_T conn; 
     DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
@@ -41,6 +40,10 @@ namespace kface {
       PersonFace face;
       face.groupId = ResultSet_getString(r, 1);
       face.userId = ResultSet_getString(r, 2);
+      if (ResultSet_getString(r, 3) == NULL) {
+        LOG(INFO) << "null";
+        continue;
+      }
       face.userName = ResultSet_getString(r, 3);
       face.image = std::make_shared<ImageFace>();
       face.image->faceToken = ResultSet_getString(r, 4);

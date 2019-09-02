@@ -53,6 +53,10 @@ static void initGlog(const std::string &name) {
 }
 
 int main(int argc, char *argv[]) {
+  std::string name(argv[0]);
+  if (argc == 2 && strcmp(argv[1], "-d") == 0) {
+    daemon(1, 0);
+  }
   kunyan::Config config("config.ini");
   std::string portConfig = config.get("server", "port");
   std::string faceLib = config.get("server", "facelib");
@@ -60,41 +64,8 @@ int main(int argc, char *argv[]) {
   ss << portConfig;
   int port;
   ss >> port;
-  std::string name(argv[0]);
-  if (argc == 2 && strcmp(argv[1], "-d") == 0) {
-    daemon(1, 0);
-  }
   initGlog(name);
   FaceService &service = FaceService::getFaceService();
-  
-  ss.clear();
-  ss.str("");
-  #if 0
-  ss << config.get("redis", "port");
-  int redisPort;
-  ss >> redisPort;
-
-  ss.clear();
-  ss.str("");
-  ss << config.get("redis", "num");
-  int num = 1;
-  ss >> num;
-
-  ss.clear();
-  ss.str("");
-  ss << config.get("redis", "max");
-  int max = 10;
-  ss >> max;
-  
-  std::shared_ptr<RedisPool> redisPool(
-  new RedisPool(config.get("redis", "ip"), 
-                redisPort, num, max, "3",
-                config.get("redis", "password")));
- #endif
-  // mongo
-  ss.clear();
-  ss.str("");
-  //const char *uri_string = "mongodb://test:123456@192.168.1.111:27017/test";
   DataSource dataSource(config);
   std::shared_ptr<DBPool> pool = std::make_shared<DBPool> ();
   if (pool->PoolInit(&dataSource) < 0) {

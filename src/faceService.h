@@ -14,7 +14,7 @@
 #include "db/dbpool.h"
 #include "faceRepoSql.h"
 #include <unordered_map>
-
+#include "apipool/apiPool.h"
 namespace kface {
 class FeatureBuffer;
 struct Location {
@@ -71,50 +71,26 @@ struct FaceSearchResult {
   double score;
 };
 
-class BaiduFaceApiBuffer {
- public:
-  BaiduFaceApiBuffer() {
-  }
-  std::shared_ptr<BaiduFaceApi> borrowBufferedApi();
-  
-  void offerBufferedApi(std::shared_ptr<BaiduFaceApi> api); 
+class BaiduFaceApiService {
+  public:
+    int init() {
+      int rc = api_.sdk_init(false);
+      if (rc != 0) {
+        return -1;
+      }
+      if (!api_.is_auth()) {
+        return -1;
+      }
+      api_.set_min_face_size(15);
+      return 0;
+    }
 
-  int init(int bufferNums);
-
- private:
-  std::shared_ptr<BaiduFaceApi> getInitApi(); 
-  std::list<std::shared_ptr<BaiduFaceApi>> apis_;
-  std::mutex lock_;
-};
-
-class BaiduApiWrapper {
- public:
-   explicit BaiduApiWrapper(BaiduFaceApiBuffer &buffers)
-    : buffers_(buffers) {
-      api_ = buffers.borrowBufferedApi();
-   }
-   ~BaiduApiWrapper() {
-     if (api_ != nullptr) {
-       buffers_.offerBufferedApi(api_);
-     }
-   }
-
-   std::shared_ptr<BaiduFaceApi> getApi() {
-     int count = 0;
-     while (api_ == nullptr) {
-       api_ = buffers_.borrowBufferedApi();
-       sleep(1);
-       count++;
-       if (count > 3) {
-         break;
-       }
-     }
-     return api_;
-   }
-
- private:
-   std::shared_ptr<BaiduFaceApi> api_{nullptr};
-   BaiduFaceApiBuffer &buffers_;
+    BaiduFaceApi* api() {
+      return &api_;
+    }
+    
+  private:
+    BaiduFaceApi api_;
 };
 
 class FaceService {
@@ -179,35 +155,31 @@ class FaceService {
   }
 
  private:
-  int search(std::shared_ptr<BaiduFaceApi> api,
+  int search(std::shared_ptr<BaiduFaceApiService> api,
       const std::set<std::string> &groupIds, 
       const std::vector<float> &feature,
       int num,
       std::vector<FaceSearchResult> &result);
-      
-
   
   std::shared_ptr<FaceAttr> getAttr(const unsigned char *data, 
                                        int len, 
-                                       std::shared_ptr<BaiduFaceApi> api);
+                                       std::shared_ptr<BaiduFaceApiService> api);
                                        
   std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, int len);
   
   std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, 
                                                 int len,
-                                                std::shared_ptr<BaiduFaceApi> api);
+                                                std::shared_ptr<BaiduFaceApiService> api);
   /*load facelib*/
   int initAgent();
-  /* baiduapi buffer*/                                             
-  BaiduFaceApiBuffer apiBuffers_;
   /*face feature buffer ordered by faceToken, clear by day*/
   std::shared_ptr<FeatureBuffer>  featureBuffers_{nullptr}; 
 
   std::shared_ptr<FaceLibRepo> faceLibRepo_;
- 
-  /*facelib lock*/
-  pthread_rwlock_t faceLock_; 
+  /*baiduapi*/
+  ApiBuffer<BaiduFaceApiService> apiBuffers_;
 };
+
 }
 
 #endif
