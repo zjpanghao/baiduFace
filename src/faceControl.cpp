@@ -237,9 +237,9 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
   }
   Json::Value faceResult;
   faceResult["error_code"] = "0";
+  Json::Value content;
+  Json::Value items;
   for (FaceSearchResult &result : resultList) {
-    Json::Value items;
-    Json::Value content;
     Json::Value item;
     item["user_id"] = result.userId;
     item["score"] = result.score;
@@ -247,9 +247,8 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     item["group_id"] = result.groupId;
     items.append(item);
     content["user_list"] = items;
-    content["face_token"] = items;
-    faceResult["result"] = content;
   }
+  faceResult["result"] = content;
  
   if (resultList.size() > 0) {
     faceResult["error_msg"] = "SUCCESS";

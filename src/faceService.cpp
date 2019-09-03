@@ -97,8 +97,8 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
-    result.attr = getAttr(&childImage[0], childImage.size(), baiduApi);
-    result.quality = faceQuality(&childImage[0], childImage.size(), baiduApi);;
+    result.attr = nullptr;//getAttr(&childImage[0], childImage.size(), baiduApi);
+    result.quality = nullptr;//faceQuality(&childImage[0], childImage.size(), baiduApi);;
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
@@ -306,7 +306,7 @@ std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data,
   Json::Reader reader;;
   if (true == reader.parse(result, root)) {
     if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
-      attr.reset(new FaceAttr());
+      attr.reset(new FaceAttr()); 
       getBaiString(root, "age", attr->age);
       getBaiString(root, "gender", attr->gender);
       getBaiString(root, "gender_conf", attr->genderConfidence);
