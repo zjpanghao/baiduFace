@@ -2,11 +2,14 @@
 #define INCLUDE_HTTP_UTIL_H
 #include <map>
 #include <string>
+#include "json/json.h"
 
 #define HTTP_RECV_BUF_SIZE 500*1024
 struct evhttp_request;
 struct evbuffer;
 std::string getBodyStr(struct evhttp_request *req);
+bool getBodyJson(struct evhttp_request *req, Json::Value &root);
+
 void sendResponse(int errorCode, 
     std::string msg,  
     struct evhttp_request *&req, 

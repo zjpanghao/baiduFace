@@ -117,3 +117,13 @@ std::string getBodyStr(struct evhttp_request *req) {
   }
   return result;
 }
+
+ bool getBodyJson(struct evhttp_request *req, Json::Value &root) {
+   std::string body = getBodyStr(req);
+   if (body == "") {
+     return false;
+   }
+   Json::Reader reader(Json::Features::strictMode());
+   return reader.parse(body, root);
+}
+

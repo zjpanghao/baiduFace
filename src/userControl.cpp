@@ -50,7 +50,6 @@ static void userFaceDelCb(struct evhttp_request *req, void *arg) {
   int len = 0;
   Json::Value root;
   Json::Value delResult;
-  Json::Reader reader;
   FaceService &service = FaceService::getFaceService(); 
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
@@ -58,8 +57,7 @@ static void userFaceDelCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
@@ -67,9 +65,9 @@ static void userFaceDelCb(struct evhttp_request *req, void *arg) {
   std::string groupId;
   std::string userId;
   std::string faceToken;
-  getJsonString(root, "group_id", groupId);
-  getJsonString(root, "user_id", userId);
-  getJsonString(root, "face_token", faceToken);
+  JsonUtil::JsonUtil::getJsonStringValue(root, "group_id", groupId);
+  JsonUtil::getJsonStringValue(root, "user_id", userId);
+  JsonUtil::getJsonStringValue(root, "face_token", faceToken);
   if (groupId.empty()
       || userId.empty()
       || faceToken.empty()) {
@@ -96,7 +94,6 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   int len = 0;
   Json::Value root;
   Json::Value faceResult;
-  Json::Reader reader;
   FaceService &service = FaceService::getFaceService(); 
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
@@ -104,8 +101,7 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
@@ -114,10 +110,10 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   std::string userId;
   std::string userInfo;
   std::string data;
-  getJsonString(root, "group_id", groupId);
-  getJsonString(root, "user_id", userId);
-  getJsonString(root, "user_info", userInfo);
-  getJsonString(root, "image", data);
+  JsonUtil::getJsonStringValue(root, "group_id", groupId);
+  JsonUtil::getJsonStringValue(root, "user_id", userId);
+  JsonUtil::getJsonStringValue(root, "user_info", userInfo);
+  JsonUtil::getJsonStringValue(root, "image", data);
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
@@ -149,7 +145,6 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
   int len = 0;
   Json::Value root;
   Json::Value faceResult;
-  Json::Reader reader;
   FaceService &service = FaceService::getFaceService(); 
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
@@ -157,8 +152,7 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
@@ -167,10 +161,10 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
   std::string userId;
   std::string userInfo;
   std::string data;
-  getJsonString(root, "group_id", groupId);
-  getJsonString(root, "user_id", userId);
-  getJsonString(root, "user_info", userInfo);
-  getJsonString(root, "image", data);
+  JsonUtil::getJsonStringValue(root, "group_id", groupId);
+  JsonUtil::getJsonStringValue(root, "user_id", userId);
+  JsonUtil::getJsonStringValue(root, "user_info", userInfo);
+  JsonUtil::getJsonStringValue(root, "image", data);
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
@@ -206,7 +200,6 @@ static void userDelCb(struct evhttp_request *req, void *arg) {
   int rc = 0;
   int len = 0;
   Json::Value root;
-  Json::Reader reader;
   FaceService &service = FaceService::getFaceService(); 
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
@@ -214,16 +207,15 @@ static void userDelCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
   std::string groupId;
   std::string userId;
-  getJsonString(root, "group_id", groupId);
-  getJsonString(root, "user_id", userId);
+  JsonUtil::getJsonStringValue(root, "group_id", groupId);
+  JsonUtil::getJsonStringValue(root, "user_id", userId);
   if (groupId.empty() || userId.empty()) {
     sendResponse(-1, "param error", req, response);
     return;

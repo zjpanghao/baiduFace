@@ -49,7 +49,6 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   Json::Value root;
   Json::Value faceResult;
   Json::Value items;
-  Json::Reader reader;
  
   evbuffer *response = evbuffer_new();
   if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
@@ -57,22 +56,21 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
+  
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
   std::string data;
-  getJsonString(root, "image", data);
+  JsonUtil::getJsonStringValue(root, "image", data);
   if (data.empty()) {
     rc = -4;
     sendResponse(rc, "image error", req, response);
     return;
   }
   int faceNum = 1;
-  getJsonString(root, "max_face_num", faceNum);
+  JsonUtil::getJsonValue(root, "max_face_num", faceNum);
   std::string decodeData;
   int decodeLen = 0;
   decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
@@ -194,21 +192,19 @@ void faceIdentifyCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  Json::Reader reader;
-  if (!reader.parse(body, root)) {
+  if (!getBodyJson(req, root)) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
   }
   std::string faceData;
-  getJsonString(root, "image", faceData);
+  JsonUtil::getJsonStringValue(root, "image", faceData);
   std::string imageType;
-  getJsonString(root, "image_type", imageType);
+  JsonUtil::getJsonStringValue(root, "image_type", imageType);
   int faceNum;
-  getJsonString(root, "max_user_num", faceNum);
+  JsonUtil::getJsonValue(root, "max_user_num", faceNum);
   std::string groupIds;
-  getJsonString(root, "group_id_list", groupIds);
+  JsonUtil::getJsonStringValue(root, "group_id_list", groupIds);
   if (faceData.empty() || imageType.empty() || groupIds.empty()) {
     rc = -4;
     sendResponse(rc, "params error", req, response);
@@ -300,9 +296,7 @@ static void faceMatchCb(struct evhttp_request *req, void *arg) {
     sendResponse(rc, "method not support", req, response);
     return;
   }
-  std::string body = getBodyStr(req);
-  Json::Reader reader;
-  if (!reader.parse(body, root) || !root.isArray() || root.size() != 2) {
+  if (!getBodyJson(req, root) || !root.isArray() || root.size() != 2) {
     rc = -3;
     sendResponse(rc, "parse error", req, response);
     return;
@@ -310,8 +304,8 @@ static void faceMatchCb(struct evhttp_request *req, void *arg) {
   std::string faceData[2];
   std::string imageType[2];
   for (int i = 0; i < 2; i++) {
-    getJsonString(root[i], "image", faceData[i]);
-    getJsonString(root[i], "image_type", imageType[i]);
+    JsonUtil::getJsonStringValue(root[i], "image", faceData[i]);
+    JsonUtil::getJsonStringValue(root[i], "image_type", imageType[i]);
     if (faceData[i].empty() || imageType[i].empty()) {
       rc = -4;
       sendResponse(rc, "params error", req, response);
