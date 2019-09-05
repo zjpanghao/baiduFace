@@ -56,7 +56,7 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   std::vector<TrackFaceInfo> *vec = out.get();
   int nFace = api->track(vec, m, faceNum);
   if (nFace <= 0) {
-    return -2;
+    return 0;
   }
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;

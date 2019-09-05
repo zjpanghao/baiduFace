@@ -71,6 +71,7 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   }
   int faceNum = 1;
   JsonUtil::getJsonValue(root, "max_face_num", faceNum);
+  LOG(INFO) << "max_face_num:" << faceNum << "image:" << data.length();
   std::string decodeData;
   int decodeLen = 0;
   decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
@@ -81,6 +82,13 @@ void faceDetectCb(struct evhttp_request *req, void *arg) {
   if (rc != 0) {
     rc = -4;
     result.clear();
+    sendResponse(rc, "detect error", req, response);
+    return;
+  }
+
+  if (rc == 0 && result.size() == 0) {
+    sendResponse(222202, "pic not has face", req, response);
+    return;
   }
   
   faceResult["error_code"] = "0";
