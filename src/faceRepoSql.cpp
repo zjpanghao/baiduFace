@@ -16,7 +16,6 @@ namespace kface {
   int FaceLibRepo::loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
     int rc = 0;
     int len = 0;
-    const char *feature = NULL;
     std::string data;
     Connection_T conn; 
     DBPoolGuard guard(pool_, &conn);
@@ -29,7 +28,7 @@ namespace kface {
           "SELECT group_id, user_id, user_name, face_token, feature from face_lib");
       r = PreparedStatement_executeQuery(p);
     } CATCH(SQLException) {
-      LOG(ERROR) << "get chat error:" << Exception_frame.message;
+      LOG(ERROR) << "load person faces error" << Exception_frame.message;
       rc = -1;
     }
     END_TRY;
@@ -47,7 +46,7 @@ namespace kface {
       face.userName = ResultSet_getString(r, 3);
       face.image = std::make_shared<ImageFace>();
       face.image->faceToken = ResultSet_getString(r, 4);
-      feature = ResultSet_getString(r, 5);
+      const char *feature = ResultSet_getString(r, 5);
       std::vector<unsigned char> vec;
       Base64::getBase64().decode(std::string(feature), vec);
       if (vec.size() != FACE_VEC_SIZE  *sizeof(float)) {
@@ -61,7 +60,7 @@ namespace kface {
 
   int FaceLibRepo::addUserFace(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn;//pool_->GetConnection();
+    Connection_T conn;
     DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
@@ -78,7 +77,7 @@ namespace kface {
     std::string featureBase64;
     LOG(INFO) << face.image->feature.size();
     std::vector<unsigned char> vec((unsigned char*)&face.image->feature[0], (unsigned char*) &face.image->feature[FACE_VEC_SIZE]);
-      Base64::getBase64().encode(vec, featureBase64);
+    Base64::getBase64().encode(vec, featureBase64);
     PreparedStatement_setString(p, 5, featureBase64.c_str());
     TRY {
       PreparedStatement_execute(p);
@@ -92,7 +91,7 @@ namespace kface {
 
   int FaceLibRepo::delUserFace(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn;// = pool_->GetConnection();
+    Connection_T conn;
     DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;
@@ -115,7 +114,7 @@ namespace kface {
 
   int FaceLibRepo::delUser(const PersonFace &face) {
     int rc = 0;
-    Connection_T conn;// = pool_->GetConnection();
+    Connection_T conn;
     DBPoolGuard guard(pool_, &conn);
     if (conn == NULL) {
       return -1;

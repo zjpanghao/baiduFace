@@ -406,7 +406,6 @@ int FaceService::delUserFace(const std::string &groupId,
     const std::string &faceToken) {
   int rc = 0;
   PersonFace face;
-  face.appName = DEFAULT_APP_NAME;
   face.groupId = groupId;
   face.userId = userId;
   face.image.reset(new ImageFace());
@@ -423,7 +422,6 @@ int FaceService::delUser(const std::string &groupId,
     const std::string &userId) {
   int rc = 0;
   PersonFace face;
-  face.appName = DEFAULT_APP_NAME;
   face.groupId = groupId;
   face.userId = userId;
   rc = faceLibRepo_->delUser(face);
