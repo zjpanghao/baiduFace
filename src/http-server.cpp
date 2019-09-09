@@ -99,7 +99,10 @@ void httpThread(void *param) {
   event_base_dispatch(base);
 }
 
-void ev_server_start_multhread(int port, int nThread) {
+void ev_server_start_multhread(const char *ip, int port, int nThread) {
+  if (ip == NULL || port <= 0) {
+    return;
+  }
   if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
 		return;
   evutil_socket_t fd;
@@ -127,7 +130,7 @@ void ev_server_start_multhread(int port, int nThread) {
     }
     if (i == 0) {
       struct evhttp_bound_socket *bound;
-      bound = evhttp_bind_socket_with_handle(http, "127.0.0.1", port);
+      bound = evhttp_bind_socket_with_handle(http, ip, port);
       if (!bound) {
         return;
       }
@@ -143,10 +146,13 @@ void ev_server_start_multhread(int port, int nThread) {
 }
 
 
-int ev_server_start(int port) {
+int ev_server_start(const char *ip, int port) {
 	struct event_base *base;
 	struct evhttp *http;
 	struct evhttp_bound_socket *handle;
+	if (ip == NULL || port <= 0) {
+    return -1;
+  }
 
 #ifdef _WIN32
 	WSADATA WSAData;

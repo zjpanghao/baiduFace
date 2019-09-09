@@ -35,7 +35,7 @@
 using kface::FaceService;
 using kface::FeatureBuffer;
 using kface::FeatureBufferMemory;
-extern void ev_server_start_multhread(int port, int nThread);
+extern void ev_server_start_multhread(const char *ip, int port, int nThread);
 
 static void initGlog(const std::string &name) {
   DIR *dir = opendir("log");
@@ -57,11 +57,14 @@ int main(int argc, char *argv[]) {
     daemon(1, 0);
   }
   kunyan::Config config("config.ini");
+  std::string ip;
   std::string portConfig = config.get("server", "port");
   std::stringstream ss;
   ss << portConfig;
   int port;
   ss >> port;
+
+  ip = config.get("server", "ip");
   initGlog(name);
   FaceService &service = FaceService::getFaceService();
   DataSource dataSource(config);
@@ -72,12 +75,12 @@ int main(int argc, char *argv[]) {
   }
   std::shared_ptr<FeatureBuffer> featureBuffer =
     std::make_shared<FeatureBufferMemory> ();
-  if (0 !=service.init(pool, featureBuffer)) {
+  if (0 !=service.init(pool, featureBuffer, config)) {
     LOG(ERROR) << "init error";
     return -1;
   }
   
-  ev_server_start_multhread(port, 1); 
+  ev_server_start_multhread(ip.c_str(), port, 1); 
   while (1) {
     sleep(10000);
   }

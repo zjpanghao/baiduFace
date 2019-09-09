@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
   
 #endif
   
-  if (0 !=service.init(pool, std::make_shared<FeatureBufferMemory>())) {
+  if (0 !=service.init(pool, std::make_shared<FeatureBufferMemory>(), config)) {
     LOG(ERROR) << "server init error";
     return -1;
   }

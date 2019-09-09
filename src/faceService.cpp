@@ -32,8 +32,9 @@ int FaceService::initAgent() {
 }
 
 int FaceService::init(std::shared_ptr<DBPool> pool, 
-                        std::shared_ptr<FeatureBuffer> featureBuffer) {
-  apiBuffers_.init(1);
+                        std::shared_ptr<FeatureBuffer> featureBuffer,
+                        kunyan::Config &config) {
+  apiBuffers_.init(1, config);
   faceLibRepo_ = std::make_shared<FaceLibRepo>(pool);
   featureBuffers_ = featureBuffer;
   featureBuffers_->init();

@@ -71,15 +71,26 @@ struct FaceSearchResult {
 
 class BaiduFaceApiService {
   public:
-    int init() {
-      int rc = api_.sdk_init(false);
+    int init(const kunyan::Config &config) {
+      bool idCard = false;
+      int detectSize = 15;
+      if (config.get("api", "idCard") == "true") {
+        idCard = true;
+      }
+      if (config.get("api", "detectSize") != "") {
+        std::stringstream ss;
+        ss << config.get("api", "detectSize");
+        ss >> detectSize;
+      }
+      int rc = api_.sdk_init(idCard);
       if (rc != 0) {
         return -1;
       }
       if (!api_.is_auth()) {
         return -1;
       }
-      api_.set_min_face_size(15);
+      LOG(INFO) << "set min detect size:" << detectSize;
+      api_.set_min_face_size(detectSize);
       return 0;
     }
 
@@ -96,7 +107,7 @@ class FaceService {
   static FaceService& getFaceService();
   FaceService();
   int init(std::shared_ptr<DBPool> pool, 
-      std::shared_ptr<FeatureBuffer> featureBuffer);
+      std::shared_ptr<FeatureBuffer> featureBuffer, kunyan::Config &config);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,
