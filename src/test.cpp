@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
     }
   }
 #endif
-  add_dir2("/home/panghao/18");
+  add_dir2(argv[1]);
   //test_delUser("227", "1");
   //add_image("33.jpg", "1");
   //add_image("/home/panghao/222/yuxiang/3743.png", "3121");

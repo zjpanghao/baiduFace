@@ -127,7 +127,7 @@ void ev_server_start_multhread(int port, int nThread) {
     }
     if (i == 0) {
       struct evhttp_bound_socket *bound;
-      bound = evhttp_bind_socket_with_handle(http, "0.0.0.0", port);
+      bound = evhttp_bind_socket_with_handle(http, "127.0.0.1", port);
       if (!bound) {
         return;
       }
@@ -143,8 +143,7 @@ void ev_server_start_multhread(int port, int nThread) {
 }
 
 
-int ev_server_start(int port)
-{
+int ev_server_start(int port) {
 	struct event_base *base;
 	struct evhttp *http;
 	struct evhttp_bound_socket *handle;
@@ -183,7 +182,7 @@ int ev_server_start(int port)
 	//evhttp_set_gencb(http, send_document_cb, argv[1]);
 
 	/* Now we tell the evhttp what port to listen on */
-	handle = evhttp_bind_socket_with_handle(http, "0.0.0.0", port);
+	handle = evhttp_bind_socket_with_handle(http, "127.0.0.1", port);
 	if (!handle) {
 		fprintf(stderr, "couldn't bind to port %d. Exiting.\n",
 		    (int)port);

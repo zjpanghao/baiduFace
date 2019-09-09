@@ -15,7 +15,7 @@ void FeatureBufferMemory::clear() {
     if (mday != mdayOld_) {
       std::lock_guard<std::mutex> guard(lock_);
       faceFeatureMap_.clear();
-      mday = val.tm_mday;
+      mdayOld_ = val.tm_mday;
     }
     std::this_thread::sleep_for(std::chrono::seconds(120));
   }
