@@ -27,14 +27,20 @@
 #include "faceRepoSql.h"
 #include "faceService.h"
 #include "config/config.h"
-#include "datasource/dataSource.h"
+#include "datasource/redisDataSource.h"
+#include "datasource/mysqlDataSource.h"
+
 #include "db/dbpool.h"
 #include "featureBufferMemory.h"
+#include "featureBufferRedis.h"
+
 
 
 using kface::FaceService;
 using kface::FeatureBuffer;
 using kface::FeatureBufferMemory;
+using kface::FeatureBufferRedis;
+
 extern void ev_server_start_multhread(const char *ip, int port, int nThread);
 
 static void initGlog(const std::string &name) {
@@ -67,14 +73,19 @@ int main(int argc, char *argv[]) {
   ip = config.get("server", "ip");
   initGlog(name);
   FaceService &service = FaceService::getFaceService();
-  DataSource dataSource(config);
+  MysqlDataSource dataSource(config);
   std::shared_ptr<DBPool> pool = std::make_shared<DBPool> ();
   if (pool->PoolInit(&dataSource) < 0) {
     LOG(ERROR) << "create db  pool error";
     return -1;
   }
-  std::shared_ptr<FeatureBuffer> featureBuffer =
-    std::make_shared<FeatureBufferMemory> ();
+  std::shared_ptr<FeatureBuffer> featureBuffer;
+  if (config.get("buffer", "type") == "redis") {
+    std::shared_ptr<RedisPool> redisPool = std::make_shared<RedisPool>(RedisDataSource(config));
+    featureBuffer = std::make_shared<FeatureBufferRedis>(redisPool);
+  } else {
+    featureBuffer = std::make_shared<FeatureBufferMemory> ();
+  }
   if (0 !=service.init(pool, featureBuffer, config)) {
     LOG(ERROR) << "init error";
     return -1;
