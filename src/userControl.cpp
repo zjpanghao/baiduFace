@@ -122,8 +122,9 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   }
   int faceNum = 0;
   LOG(INFO) << "addUser :" << userId << "groupid:" << groupId << "imageLen:" << data.length(); 
-  std::string faceToken;
-  rc = service.addUserFace(groupId, userId, userInfo, data, faceToken);
+  FaceUpdateResult updateResult;
+  rc = service.addUserFace(groupId, userId, userInfo, data, updateResult);
+  std::string faceToken = updateResult.faceToken;
   if (rc != 0 || faceToken.length() == 0) {
     sendResponse(-1, "add user failed", req, response);
     return;

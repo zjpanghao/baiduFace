@@ -355,7 +355,7 @@ int FaceService::addUserFace(const std::string &groupId,
     const std::string &userId,
     const std::string &userName,
     const std::string &dataBase64,
-    std::string &faceToken){
+    FaceUpdateResult &faceUpdateResult){
   int len = 0;
   std::string data = ImageBase64::decode(dataBase64.c_str(), dataBase64.length(), len);
   if (len < 10) {
@@ -388,7 +388,8 @@ int FaceService::addUserFace(const std::string &groupId,
     LOG(ERROR) << "repo add userface error";
     return -9;
   }
-  faceToken = result.faceToken;
+  faceUpdateResult.faceToken = result.faceToken;
+  faceUpdateResult.location = result.location;
   LOG(INFO) << "add user sucess:" << userId << "faceToken:" << result.faceToken;
   return 0;
 }
@@ -399,7 +400,14 @@ int FaceService::updateUserFace(const std::string &groupId,
     const std::string &dataBase64,
     FaceUpdateResult &updateResult) {
   int len = 0;
-  return -1;
+  delUser(groupId, userId);
+  int rc = addUserFace(groupId, userId, userName, 
+      dataBase64,
+      updateResult);
+  if (rc != 0) {
+    return rc;
+  }
+  return rc;
 }
 
 int FaceService::delUserFace(const std::string &groupId,

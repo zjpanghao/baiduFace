@@ -127,7 +127,7 @@ class FaceService {
                        const std::string &userId,
                        const std::string &userName,
                        const std::string &dataBase64,
-                       std::string &faceToken);
+                       FaceUpdateResult &faceUpdateResult);
 
   int delUser(const std::string &groupId,
                  const std::string &userId);
