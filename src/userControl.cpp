@@ -180,6 +180,7 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
     sendResponse(-1, "update user failed", req, response);
     return;
   }
+  Json::Value baiduResult;
   Json::Value result;
   result["face_token"] = updateResult.faceToken;
   Json::Value location;
@@ -189,10 +190,11 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
   location["height"] = updateResult.location.height;
   location["rotation"] = updateResult.location.rotation;
   result["location"] = location;
-  result["error_code"] = "0";
-  result["error_msg"] = "SUCCESS";
-  LOG(INFO) <<"face update:" <<  result.toStyledString();
-  evbuffer_add_printf(response, "%s", result.toStyledString().c_str());
+  baiduResult["error_code"] = "0";
+  baiduResult["error_msg"] = "SUCCESS";
+  baiduResult["result"] = result;
+  LOG(INFO) <<"face update:" <<  baiduResult.toStyledString();
+  evbuffer_add_printf(response, "%s", baiduResult.toStyledString().c_str());
   evhttp_send_reply(req, 200, "OK", response);
 }
 
