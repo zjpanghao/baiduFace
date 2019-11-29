@@ -13,7 +13,7 @@
 namespace kface {
 
 struct PersonFace;
-class FaceLibRepo {
+class FaceLibRepo{
   public:
     FaceLibRepo(std::shared_ptr<DBPool> pool);
     int loadPersonFaces(const std::string &name, std::list<PersonFace> &faces);
