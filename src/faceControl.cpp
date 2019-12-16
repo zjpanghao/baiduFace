@@ -10,7 +10,6 @@
 #include "faceService.h"
 #include "util.h"
 #include "httpUtil.h"
-#include "evdrv/urlMap.h"
 namespace kface {
 int  FaceControl::faceIdentifyCb(
     const Json::Value &root, 
@@ -295,6 +294,12 @@ int FaceControl:: faceMatchCb(
   faceResult["result"] = compareResult;
   LOG(INFO) << faceResult.toStyledString();
   return 0;
+}
+
+int FaceControl::init(const kunyan::Config &config) {
+  FaceService &service = 
+    FaceService::getFaceService();
+  return service.init(config);
 }
 
 }

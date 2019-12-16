@@ -2,10 +2,10 @@
 #define INCLUDE_USER_CONTROL_H
 #include <vector>
 #include "httpUtil.h"
-#include "evdrv/urlMap.h"
+#include "evdrv/generalControl.h"
 struct evhttp_request;
 namespace kface {
-class UserControl : public UrlMap {
+class UserControl : public GeneralControl {
   public:
     static int userFaceAddCb(
         const Json::Value &root,\

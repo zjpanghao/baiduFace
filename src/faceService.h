@@ -106,8 +106,7 @@ class FaceService {
  public:
   static FaceService& getFaceService();
   FaceService();
-  int init(std::shared_ptr<DBPool> pool, 
-      std::shared_ptr<FeatureBuffer> featureBuffer, kunyan::Config &config);
+  int init(const kunyan::Config &config);
   /* detect face, caculate feature and buffer it with facetoken*/
   int detect(const std::vector<unsigned char> &data, 
              int faceNum,

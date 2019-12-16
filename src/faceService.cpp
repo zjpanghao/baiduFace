@@ -11,7 +11,10 @@
 #include "cv_help.h"
 #include "util.h"
 #include "featureBufferMemory.h"
+#include "featureBufferRedis.h"
 #include "json/json.h"
+#include "predis/redis_pool.h"
+#include "resource/resource.h"
 #define BAIDU_FEATURE_KEY "baiduFeature"
 #define MAX_FACE_TRACK 5
 using  cv::Mat;
@@ -31,11 +34,16 @@ int FaceService::initAgent() {
   return 0;
 }
 
-int FaceService::init(std::shared_ptr<DBPool> pool, 
-                        std::shared_ptr<FeatureBuffer> featureBuffer,
-                        kunyan::Config &config) {
+int FaceService::init(const kunyan::Config &config) {
+  std::shared_ptr<FeatureBuffer> featureBuffer;
+  if (config.get("buffer", "type") == "redis") {
+    std::shared_ptr<RedisPool> redisPool = std::make_shared<RedisPool>(RedisDataSource(config));
+    featureBuffer = std::make_shared<FeatureBufferRedis>(Resource::getResource().redisPool());
+  } else {
+    featureBuffer = std::make_shared<FeatureBufferMemory> ();
+  }
   apiBuffers_.init(1, config);
-  faceLibRepo_ = std::make_shared<FaceLibRepo>(pool);
+  faceLibRepo_ = std::make_shared<FaceLibRepo>(Resource::getResource().dbPool());
   featureBuffers_ = featureBuffer;
   featureBuffers_->init();
   return 0;
