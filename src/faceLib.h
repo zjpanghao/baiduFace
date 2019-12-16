@@ -2,6 +2,7 @@
 #define INCLUDE_FACE_LIB_H
 #include "zdb/zdb.h"
 #include "faceEntity.h"
+#include "glog/logging.h"
 namespace kface {
 template <class T>
 class FaceLibMapper : public RowMapper<T> {
@@ -23,6 +24,7 @@ class FaceLibMapper : public RowMapper<T> {
         return -1;
       }
       t.image->feature.assign((float*)&vec[0], (float*)(&vec[FACE_VEC_SIZE* sizeof(float)]));
+      return 0;
    }
 };
 

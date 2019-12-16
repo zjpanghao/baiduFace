@@ -10,6 +10,10 @@ struct evbuffer;
 std::string getBodyStr(struct evhttp_request *req);
 bool getBodyJson(struct evhttp_request *req, Json::Value &root);
 
+void setResponse(int errorCode, 
+    std::string msg,
+    Json::Value &result);
+
 void sendResponse(int errorCode, 
     std::string msg,  
     struct evhttp_request *&req, 
@@ -21,10 +25,11 @@ void sendResponseResult(int errorCode,
     const std::map<std::string, vvalue> &paraMap,
     struct evhttp_request *&req, 
     evbuffer *&response); 
-
+#if 0
 struct HttpControl {
   std::string url;
   void (*cb)(evhttp_request *reg, void *arg);
 };
+#endif
 
 #endif

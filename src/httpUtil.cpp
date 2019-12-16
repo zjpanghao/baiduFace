@@ -75,6 +75,17 @@
 #include <regex>
 //#include "faceAgent.h"
 //#include "faceService.h"
+//
+void setResponse(int errorCode, 
+    std::string msg,
+    Json::Value &result) {
+  std::stringstream ss;
+  ss << errorCode;
+  std::string tmp;
+  ss >> tmp;
+  result["error_code"] = tmp;
+  result["error_msg"] = msg;
+}
 
 void sendResponse(int errorCode, 
     std::string msg,  

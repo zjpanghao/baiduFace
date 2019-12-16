@@ -33,6 +33,10 @@
 #include "db/dbpool.h"
 #include "featureBufferMemory.h"
 #include "featureBufferRedis.h"
+#include "evdrv/evHtpDrv.h"
+#include "evdrv/evHttpDrv.h"
+#include "faceControl.h"
+#include "userControl.h"
 
 
 
@@ -90,8 +94,20 @@ int main(int argc, char *argv[]) {
     LOG(ERROR) << "init error";
     return -1;
   }
-  
-  ev_server_start_multhread(ip.c_str(), port, 1); 
+  EvDrv *drv = NULL;
+  if (config.get("server", "htp") 
+      != "") {
+    drv = &EvHtpDrv::getDrv();
+  } else {
+    drv = &EvHttpDrv::getDrv();
+  }
+  static std::vector<std::shared_ptr<UrlMap>> urls{
+    std::shared_ptr<kface::FaceControl>(
+      new kface::FaceControl()),
+    std::shared_ptr<kface::UserControl>(
+      new kface::UserControl())
+  };
+  drv->startServer(config, urls); 
   while (1) {
     sleep(10000);
   }

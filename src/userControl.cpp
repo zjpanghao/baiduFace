@@ -1,67 +1,25 @@
 #include "userControl.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <dirent.h>
-
-#include <event2/event.h>
-#include <event2/http.h>
-#include <event2/buffer.h>
-#include <event2/util.h>
-#include <event2/keyvalq_struct.h>
-
-#ifdef EVENT__HAVE_NETINET_IN_H
-#include <netinet/in.h>
-# ifdef _XOPEN_SOURCE_EXTENDED
-#  include <arpa/inet.h>
-# endif
-#endif
-#include "event2/http_compat.h"
 #include "json/json.h"
 #include "image_base64.h"
-#include "event2/http.h"
-
-#include<opencv2/opencv.hpp>
-#include<opencv/highgui.h>
 
 #include <thread>
 #include <vector>
 #include <glog/logging.h>
 #include <iterator>
 #include <regex>
-#include "faceAgent.h"
 #include "faceService.h"
 #include "httpUtil.h"
 #include "util.h"
 
 namespace kface {
 /* delete user face */
-static void userFaceDelCb(struct evhttp_request *req, void *arg) {
+int UserControl::userFaceDelCb(
+    const Json::Value &root,
+    Json::Value &result) {
   int rc = 0;
   int len = 0;
-  Json::Value root;
-  Json::Value delResult;
+  Json::Value &delResult = result;
   FaceService &service = FaceService::getFaceService(); 
-  evbuffer *response = evbuffer_new();
-  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-    rc = -1;
-    sendResponse(rc, "method not support", req, response);
-    return;
-  }
-  if (!getBodyJson(req, root)) {
-    rc = -3;
-    sendResponse(rc, "parse error", req, response);
-    return;
-  }
   std::string groupId;
   std::string userId;
   std::string faceToken;
@@ -72,40 +30,40 @@ static void userFaceDelCb(struct evhttp_request *req, void *arg) {
       || userId.empty()
       || faceToken.empty()) {
     rc = -2;
-    sendResponse(rc, "params error", req, response);
-    return;
+    setResponse(rc, "params error",
+        result);
+    return rc;
   }
   rc = service.delUserFace(groupId, userId, faceToken);
   if (rc != 0) {
-    delResult["error_code"] = "-1";
-    delResult["error_msg"]  = "del failed";  
+    setResponse(-1, "del failed", result);
   } else {
-    delResult["error_code"] = "0";
-    delResult["error_msg"]  = "SUCCESS";  
+    setResponse(0, "SUCCESS", result);
   }
-  LOG(INFO) << delResult.toStyledString();
-  evbuffer_add_printf(response, "%s", delResult.toStyledString().c_str());
-  evhttp_send_reply(req, 200, "OK", response);
+  LOG(INFO) << result.toStyledString();
+  return rc;
 }
 
+std::vector<HttpControl>
+UserControl::getMapping() {
+  std::vector<HttpControl> controlList = {
+    {"/face-api/v3/face/add", UserControl::userFaceAddCb},
+    {"/face-api/v3/face/delete", UserControl::userFaceDelCb},
+    {"/face-api/v3/user/delete", UserControl::userDelCb},
+    /* remove user's faces then add new face */
+    {"/face-api/v3/face/update", UserControl::userUpdateCb},
+  };
+  return controlList;
+}
+
+
 /* add face to user*/
-static void userFaceAddCb(struct evhttp_request *req, void *arg) {
+int UserControl::userFaceAddCb(
+    const Json::Value &root,
+    Json::Value &result) {
   int rc = 0;
   int len = 0;
-  Json::Value root;
-  Json::Value faceResult;
   FaceService &service = FaceService::getFaceService(); 
-  evbuffer *response = evbuffer_new();
-  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-    rc = -1;
-    sendResponse(rc, "method not support", req, response);
-    return;
-  }
-  if (!getBodyJson(req, root)) {
-    rc = -3;
-    sendResponse(rc, "parse error", req, response);
-    return;
-  }
   std::string groupId;
   std::string userId;
   std::string userInfo;
@@ -117,8 +75,8 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
-    sendResponse(-1, "param error", req, response);
-    return;
+    setResponse(-1, "param error", result);
+    return -1;
   }
   int faceNum = 0;
   LOG(INFO) << "addUser :" << userId << "groupid:" << groupId << "imageLen:" << data.length(); 
@@ -126,38 +84,26 @@ static void userFaceAddCb(struct evhttp_request *req, void *arg) {
   rc = service.addUserFace(groupId, userId, userInfo, data, updateResult);
   std::string faceToken = updateResult.faceToken;
   if (rc != 0 || faceToken.length() == 0) {
-    sendResponse(-1, "add user failed", req, response);
-    return;
+    setResponse(-1, "add user failed",
+        result);
+    return -1;
   }
-  Json::Value results;
-  Json::Value result;
-  result["face_token"] = faceToken;
-  results["result"] = result;
-  results["error_code"] = "0";
-  results["error_msg"] = "SUCCESS";
-  LOG(INFO) <<"face add:" <<  results.toStyledString();
-  evbuffer_add_printf(response, "%s", results.toStyledString().c_str());
-  evhttp_send_reply(req, 200, "OK", response);
+  Json::Value searchResult;
+  searchResult["face_token"] = faceToken;
+  result["result"] = searchResult;
+  result["error_code"] = "0";
+  result["error_msg"] = "SUCCESS";
+  LOG(INFO) <<"face add:" <<  result.toStyledString();
+  return 0;
 }
 
 /* remove user's faces then add new face */
-static void userUpdateCb(struct evhttp_request *req, void *arg) {
+int UserControl::userUpdateCb(
+    const Json::Value &root,
+    Json::Value &result) {
   int rc = 0;
   int len = 0;
-  Json::Value root;
-  Json::Value faceResult;
   FaceService &service = FaceService::getFaceService(); 
-  evbuffer *response = evbuffer_new();
-  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-    rc = -1;
-    sendResponse(rc, "method not support", req, response);
-    return;
-  }
-  if (!getBodyJson(req, root)) {
-    rc = -3;
-    sendResponse(rc, "parse error", req, response);
-    return;
-  }
   std::string groupId;
   std::string userId;
   std::string userInfo;
@@ -169,85 +115,60 @@ static void userUpdateCb(struct evhttp_request *req, void *arg) {
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
-    sendResponse(-1, "param error", req, response);
-    return;
+    setResponse(-1, "param error", result);
+    return -1;
   }
   int faceNum = 0;
   LOG(INFO) << "updateUser :" << userId << "groupid:" << groupId << "imageLen:" << data.length(); 
   FaceUpdateResult updateResult;
   rc = service.updateUserFace(groupId, userId, userInfo, data, updateResult);
   if (rc != 0 || updateResult.faceToken.length() == 0) {
-    sendResponse(-1, "update user failed", req, response);
-    return;
+    setResponse(-1, "update user failed",
+        result);
+    return -1;
   }
-  Json::Value baiduResult;
-  Json::Value result;
-  result["face_token"] = updateResult.faceToken;
+  Json::Value &baiduResult = result;
+  Json::Value faceResult;
+  faceResult["face_token"] = updateResult.faceToken;
   Json::Value location;
   location["left"] = updateResult.location.x;
   location["top"] = updateResult.location.y;
   location["width"] = updateResult.location.width;
   location["height"] = updateResult.location.height;
   location["rotation"] = updateResult.location.rotation;
-  result["location"] = location;
+  faceResult["location"] = location;
   baiduResult["error_code"] = "0";
   baiduResult["error_msg"] = "SUCCESS";
-  baiduResult["result"] = result;
+  baiduResult["result"] = faceResult;
   LOG(INFO) <<"face update:" <<  baiduResult.toStyledString();
-  evbuffer_add_printf(response, "%s", baiduResult.toStyledString().c_str());
-  evhttp_send_reply(req, 200, "OK", response);
+  return 0;
 }
 
 /*delete user*/
-static void userDelCb(struct evhttp_request *req, void *arg) {
+int UserControl::userDelCb(
+    const Json::Value &root,
+    Json::Value &result) {
   int rc = 0;
   int len = 0;
-  Json::Value root;
   FaceService &service = FaceService::getFaceService(); 
-  evbuffer *response = evbuffer_new();
-  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-    rc = -1;
-    sendResponse(rc, "method not support", req, response);
-    return;
-  }
-  if (!getBodyJson(req, root)) {
-    rc = -3;
-    sendResponse(rc, "parse error", req, response);
-    return;
-  }
   std::string groupId;
   std::string userId;
   JsonUtil::getJsonStringValue(root, "group_id", groupId);
   JsonUtil::getJsonStringValue(root, "user_id", userId);
   if (groupId.empty() || userId.empty()) {
-    sendResponse(-1, "param error", req, response);
-    return;
+    setResponse(-1, "param error",
+        result);
+    return -1;
   }
   rc = service.delUser(groupId, userId);
   if (rc != 0) {
-    sendResponse(-1, "del user failed", req, response);
-    return;
+    setResponse(-1, "del user failed",
+        result);
+    return rc;
   }
-  Json::Value result;
-  result["error_code"] = "0";
-  result["error_msg"] = "SUCCESS";
+  setResponse(0, "SUCCESS", result);
   LOG(INFO) << result.toStyledString();
-  evbuffer_add_printf(response, "%s", result.toStyledString().c_str());
-  evhttp_send_reply(req, 200, "OK", response);
-}
-
-/*register user interface*/
-void initUserControl(std::vector<HttpControl> &controls) {
-  std::vector<HttpControl> controlList = {
-    {"/face-api/v3/face/add", userFaceAddCb},
-    {"/face-api/v3/face/delete", userFaceDelCb},
-    {"/face-api/v3/user/delete", userDelCb},
-    /* remove user's faces then add new face */
-    {"/face-api/v3/face/update", userUpdateCb},
-  };
-  for (HttpControl &control : controlList) {
-    controls.push_back(control);
-  }
+  return rc;
 }
 
 }
