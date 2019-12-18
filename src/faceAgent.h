@@ -6,6 +6,7 @@
 #include <vector>
 #include <list>
 #include "faceEntity.h"
+#include <pthread.h>
 
 #define DEFAULT_APP_NAME "door"
 
@@ -65,22 +66,26 @@ class AppFace {
 class FaceAgent {
  public:
   static FaceAgent& getFaceAgent();
-  int addAppFace(const std::string &appName);
-  std::shared_ptr<AppFace> getAppFace(const std::string &appName);
-  void getUserFaces(const std::string &appName,
-      const std::string &groupName,
-      const std::string &userName,
-      std::map<std::string, std::shared_ptr<ImageFace>> &faceMap);
   void getDefaultPersonFaces(std::list<PersonFace> &faces);
   int addPersonFace(const PersonFace &face);
   int delPersonFace(const PersonFace &face);
   int delPerson(const PersonFace &face);
-  std::map<std::string, std::shared_ptr<AppFace>> getAppFaces() {
-    return appFaces;
-  }
+  void getUserFaces(const std::string &appName,
+                          const std::string &groupName,
+                          const std::string &userName,
+                          std::map<std::string, std::shared_ptr<ImageFace>> &faceMap);
 
   private:
-    std::map<std::string, std::shared_ptr<AppFace>> appFaces;
+   FaceAgent() {
+   }
+
+   
+   std::shared_ptr<AppFace> getAppFace(const std::string &appName);
+   std::map<std::string, std::shared_ptr<AppFace>> getAppFaces() {
+     return appFaces;
+   }
+   int addAppFace(const std::string &appName);
+   std::map<std::string, std::shared_ptr<AppFace>> appFaces;
 };
 
 }

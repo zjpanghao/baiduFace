@@ -1,236 +1,305 @@
 #include "faceControl.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
-
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <dirent.h>
-
-#include <event2/event.h>
-#include <event2/http.h>
-#include <event2/buffer.h>
-#include <event2/util.h>
-#include <event2/keyvalq_struct.h>
-
-#ifdef EVENT__HAVE_NETINET_IN_H
-#include <netinet/in.h>
-# ifdef _XOPEN_SOURCE_EXTENDED
-#  include <arpa/inet.h>
-# endif
-#endif
-#include "event2/http_compat.h"
 #include "json/json.h"
 #include "image_base64.h"
-#include "event2/http.h"
-
-#include<opencv2/opencv.hpp>
-#include<opencv/highgui.h>
-
 #include <thread>
 #include <vector>
 #include <glog/logging.h>
 #include <iterator>
 #include <regex>
-#include "faceAgent.h"
 #include "faceService.h"
+#include "util.h"
 #include "httpUtil.h"
-
 namespace kface {
-	void faceDetectCb(struct evhttp_request *req, void *arg) {
-	  const char *cmdtype;
-	  struct evkeyvalq *headers;
-	  struct evkeyval *header;
-	  struct evbuffer *buf;
-	  int rc = 0;
-	  int len = 0;
-	  std::vector<FaceDetectResult> result;
-	  auto it = result.begin();
-	  Json::Value root;
-	  Json::Value faceResult;
-	  Json::Value items;
-	  Json::Reader reader;
-	  int decodeLen = 0;
-	  FaceService &service = FaceService::getFaceService(); 
-	  std::string decodeData; 
-	  std::vector<unsigned char> cdata;
-	  evbuffer *response = evbuffer_new();
-	  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-		rc = -1;
-		sendResponse(rc, "method not support", req, response);
-		return;
-	  }
-	
-	  std::string body = getBodyStr(req);
-	  if (!reader.parse(body, root)) {
-		rc = -3;
-		sendResponse(rc, "parse error", req, response);
-		return;
-	  }
-	  std::string data = root["image"].isNull() ? "" : root["image"].asString();
-	  std::stringstream num;
-	  int faceNum = 0;
-	  num << (root["max_face_num"].isNull() ? "1" : root["max_face_num"].asString());
-	  num >> faceNum;
-	  decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
-	  cdata.assign(&decodeData[0], &decodeData[0] + decodeLen);
-	  
-	  rc = service.detect(cdata, faceNum, result);
-	  if (rc != 0) {
-		rc = -4;
-		result.clear();
-	  }
-	  it = result.begin();
-	  faceResult["error_code"] = "0";
-	  faceResult["error_msg"] = "SUCCESS";
-	  {
-		Json::Value content;
-		while (it != result.end()) {
-		  Json::Value item;
-		  item["face_token"] = it->faceToken;
-		  Json::Value faceType;
-		  faceType["probability"] = 1;
-		  faceType["type"] = "human";
-		  item["face_type"] = faceType;
-		  if (it->attr != nullptr) {
-			Json::Value gender;
-			gender["type"] = it->attr->gender == 1 ? "male" : "female";
-			gender["probability"] = it->attr->genderConfidence;
-			item["gender"] = gender;
-			item["age"] = it->attr->age;
-			Json::Value glasses;
-			glasses["type"] = it->attr->glasses ? "WITH" : "NONE";
-			item["glasses"] = glasses;
-			Json::Value expression;
-			expression["type"] = it->attr->expression ? "smile" : "none";
-			item["expression"] = expression;
-		  }
-		  item["face_probability"] =  it->trackInfo.score;
-		  Json::Value location;
-		  location["left"] = it->location.x;
-		  location["top"] = it->location.y;
-		  location["width"] = it->location.width;
-		  location["height"] = it->location.height;
-		  location["rotation"] = it->location.rotation;
-		  item["location"] = location;
-		  if (it->quality != nullptr) {
-			Json::Value quality;
-			quality["illumination"] = it->quality->illumination;
-			quality["blur"] = it->quality->blur;
-			quality["completeness"] = it->quality->completeness;
-			Json::Value occl;
-			occl["left_eye"] = (int)it->quality->occlution.leftEye;
-			occl["right_eye"] = (int)it->quality->occlution.rightEye;
-			occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
-			occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
-			occl["mouth"] = (int)it->quality->occlution.mouth;
-			occl["nose"] = (float)it->quality->occlution.nose;
-			occl["chin_contour"] = (int)it->quality->occlution.chinContour;
-			quality["occlusion"] = occl;
-			quality["completeness"] = it->quality->completeness;
-			item["quality"] = quality;
-		  }
-	
-		  Json::Value headPose;
-		  int inx = 0;
-		  std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
-		  for (float v : it->trackInfo.headPose) {
-			headPose[angleNames[inx++]] = v;
-		  }
-		  item["angle"] = headPose;
-		  items.append(item);
-		  it++;
-		}
-		content["face_num"] = (int)result.size();
-		content["face_list"] = items;
-		faceResult["result"] = content;
-	  }
-	  if (result.size() > 0) {
-		LOG(INFO) << faceResult.toStyledString();
-	  }
-	  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
-	  evhttp_send_reply(req, 200, "OK", response);
-	}
-
-
-void faceIdentifyCb(struct evhttp_request *req, void *arg) {
+int  FaceControl::faceIdentifyCb(
+    const Json::Value &root, 
+    Json::Value &result) {
   int rc = 0;
-  int len = 0;
-  Json::Value root;
-  Json::Value faceResult;
-  Json::Value items;
-  Json::Reader reader;
   int decodeLen = 0;
-  FaceService &service = FaceService::getFaceService(); 
-  evbuffer *response = evbuffer_new();
-  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
-    rc = -1;
-    sendResponse(rc, "method not support", req, response);
-    return;
+  auto start = std::chrono::steady_clock::now();
+  std::string faceData;
+  JsonUtil::getJsonStringValue(root, "image", faceData);
+  std::string imageType;
+  JsonUtil::getJsonStringValue(root, "image_type", imageType);
+  int faceNum = 1;
+  JsonUtil::getJsonValue(root, "max_user_num", faceNum);
+  std::string groupIds;
+  JsonUtil::getJsonStringValue(root, "group_id_list", groupIds);
+  if (faceData.empty() || imageType.empty() || groupIds.empty()) {
+    rc = -4;
+    setResponse(rc, "params error", result);
+  return rc;
   }
-  std::string body = getBodyStr(req);
-  if (!reader.parse(body, root)) {
-    rc = -3;
-    sendResponse(rc, "parse error", req, response);
-    return;
-  }
-  std::string faceToken = root["image"].asString();
-  std::stringstream num;
-  num  << (root["max_user_num"].isNull() ? "1" : root["max_user_num"].asString());
-  int faceNum;
-  num >> faceNum;
-  std::string groupIds = root["group_id_list"].asString();
   std::regex re(",");
   std::set<std::string> groupList(std::sregex_token_iterator(groupIds.begin(), groupIds.end(), re, -1),
-            std::sregex_token_iterator());
-  LOG(INFO) << "faceToken:" << faceToken << "gid:" << groupIds;
+      std::sregex_token_iterator());
+  LOG(INFO) << "faceToken:" << (faceData.length() < 64 ? faceData: faceData.substr(0,64))  << "gid:" << groupIds << "type" << imageType;
+
   std::vector<FaceSearchResult> resultList;
-  rc = service.search(groupList, faceToken, faceNum, resultList);
-  if (rc != 0) {
-    rc = -4;
-    sendResponse(rc, "no such facetoken", req, response);
-    return;
-  }
-  faceResult["error_code"] = "0";
-  for (FaceSearchResult &result : resultList) {
-    Json::Value content;
-    Json::Value item;
-    item["user_id"] = result.userId;
-    item["score"] = result.score;
-    item["user_info"] = "";
-    item["group_id"] = result.groupId;
-    items.append(item);
-    content["user_list"] = items;
-    faceResult["result"] = content;
+  FaceService &service = FaceService::getFaceService(); 
+  if (imageType == "FACE_TOKEN") {
+    rc = service.search(groupList, faceData, faceNum, resultList);
+  } else if (imageType == "BASE64") {
+    rc = service.searchByImage64(groupList, faceData, faceNum, resultList);
+  } else {
+    rc = -5;
   }
 
+  if (rc != 0) {
+    rc = -4;
+    setResponse(rc, "search error", result);
+    return rc;
+  }
+  Json::Value &faceResult = result;
+ 
+  faceResult["error_code"] = "0";
+  Json::Value content;
+  Json::Value items;
+  for (FaceSearchResult &faceSearchResult : resultList) {
+    Json::Value item;
+    item["user_id"] = 
+      faceSearchResult.userId;
+    item["score"] 
+      = faceSearchResult.score;
+    item["user_info"] 
+      = faceSearchResult.userName;
+    item["group_id"] 
+      = faceSearchResult.groupId;
+    items.append(item);
+    content["user_list"] = items;
+  }
+  faceResult["result"] = content;
+ 
   if (resultList.size() > 0) {
     faceResult["error_msg"] = "SUCCESS";
   } else {
+    Json::Value content;
+    faceResult["error_code"] = "222207";
     faceResult["error_msg"] = "match user is not found";
+    faceResult["result"] = content;
   }
-  LOG(INFO) << faceResult.toStyledString();
-  evbuffer_add_printf(response, "%s", faceResult.toStyledString().c_str());
-  evhttp_send_reply(req, 200, "OK", response);
-done:
-  ;
+  
+  auto end = std::chrono::steady_clock::now();
+  auto dureTime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+  LOG(INFO) << "dure:" << dureTime;
+  return 0;
+  //faceResult["dure"] = dureTime;
+}
+int  FaceControl::faceDetectCb(
+    const Json::Value &root, 
+    Json::Value &result) {
+  std::vector<FaceDetectResult> 
+    detectResult;
+  std::string data;
+  JsonUtil::getJsonStringValue(root, "image", data);
+  int rc = 0;
+  if (data.empty()) {
+    rc = -1;
+    setResponse(rc, "image error", result);
+    return rc;
+  }
+  int faceNum = 1;
+  JsonUtil::getJsonValue(root, "max_face_num", faceNum);
+  LOG(INFO) << "max_face_num:" << faceNum << "image:" << data.length();
+  std::string decodeData;
+  int decodeLen = 0;
+  decodeData = ImageBase64::decode(data.c_str(), data.size(), decodeLen);
+  std::vector<unsigned char> cdata;
+  cdata.assign(&decodeData[0], &decodeData[0] + decodeLen);
+  FaceService &service = FaceService::getFaceService(); 
+  rc = service.detect(cdata, faceNum, detectResult);
+  if (rc != 0) {
+    rc = -4;
+    result.clear();
+    setResponse(rc, "detect error", 
+        result);
+    return rc;
+  }
+
+  auto  &faceResult = result;
+  if (rc == 0 && detectResult.size() == 0) {
+    setResponse(222202, "pic not has face", result);
+    return rc;
+  }
+  faceResult["error_code"] = "0";
+  faceResult["error_msg"] = "SUCCESS";
+  Json::Value content;
+  Json::Value item;
+  Json::Value items;
+  auto it = detectResult.begin();
+  while (it != detectResult.end()) {
+    Json::Value item;
+    item["face_token"] = it->faceToken;
+    Json::Value faceType;
+    faceType["probability"] = 1;
+    faceType["type"] = "human";
+    item["face_type"] = faceType;
+    if (it->attr != nullptr) {
+      Json::Value gender;
+      gender["type"] = it->attr->gender == 1 ? "male" : "female";
+      gender["probability"] = it->attr->genderConfidence;
+      item["gender"] = gender;
+      item["age"] = it->attr->age;
+      Json::Value glasses;
+      glasses["type"] = "NONE";
+      item["glasses"] = glasses;
+      Json::Value expression;
+      expression["type"] = it->attr->expression ? "smile" : "none";
+      item["expression"] = expression;
+    } else {
+      Json::Value gender;
+      gender["type"] = "male";
+      gender["probability"] = 0.99;
+      item["gender"] = gender;
+      item["age"] = 30;
+      Json::Value glasses;
+      glasses["type"] = "NONE";
+      item["glasses"] = glasses;
+      Json::Value expression;
+      expression["type"] = "none";
+      item["expression"] = expression;
+    }
+    
+    item["face_probability"] =  it->trackInfo.score;
+    Json::Value location;
+    location["left"] = it->location.x;
+    location["top"] = it->location.y;
+    location["width"] = it->location.width;
+    location["height"] = it->location.height;
+    location["rotation"] = it->location.rotation;
+    item["location"] = location;
+    if (it->quality != nullptr) {
+      Json::Value quality;
+      quality["illumination"] = it->quality->illumination;
+      quality["blur"] = it->quality->blur;
+      quality["completeness"] = it->quality->completeness;
+      Json::Value occl;
+      occl["left_eye"] = (int)it->quality->occlution.leftEye;
+      occl["right_eye"] = (int)it->quality->occlution.rightEye;
+      occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
+      occl["right_cheek"] = (int)it->quality->occlution.rightCheek;
+      occl["mouth"] = (int)it->quality->occlution.mouth;
+      occl["nose"] = (float)it->quality->occlution.nose;
+      occl["chin_contour"] = (int)it->quality->occlution.chinContour;
+      quality["occlusion"] = occl;
+      quality["completeness"] = it->quality->completeness;
+      item["quality"] = quality;
+    } else {
+      Json::Value quality;
+      quality["illumination"] = 100;
+      quality["blur"] = 0;
+      quality["completeness"] = 1;
+      Json::Value occl;
+      occl["left_eye"] = 0;
+      occl["right_eye"] = 0;
+      occl["left_cheek"] = 0;
+      occl["right_cheek"] = 0;
+      occl["mouth"] = 0;
+      occl["nose"] = 0.0;
+      occl["chin_contour"] = 0;
+      quality["occlusion"] = occl;
+      item["quality"] = quality;
+    }
+
+    Json::Value headPose;
+    int inx = 0;
+    std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
+    for (float v : it->trackInfo.headPose) {
+      headPose[angleNames[inx++]] = v;
+    }
+    item["angle"] = headPose;
+    items.append(item);
+    it++;
+  }
+  content["face_num"] = (int)result.size();
+  content["face_list"] = items;
+  faceResult["result"] = content;
+  return 0;
 }
 
-void initFaceControl(std::vector<HttpControl> &controls) {
-  std::vector<HttpControl> controlList = {
-    {"/face-api/v3/face/detect", faceDetectCb},
-    {"/face-api/v3/face/identify", faceIdentifyCb}
-  };
-  for (HttpControl &control : controlList) {
-    controls.push_back(control);
+std::vector<HttpControl>
+  FaceControl::getMapping() {
+    std::vector<HttpControl> controlList = {
+      {"/face-api/v3/face/detect", FaceControl::faceDetectCb},
+      {"/face-api/v3/face/identify", FaceControl::faceIdentifyCb},
+      {"/face-api/v3/face/debug", FaceControl::faceDebugCb},
+        {"/face-api/v3/face/match", FaceControl::faceMatchCb}
+    };
+    return controlList;
   }
+
+int FaceControl::faceDebugCb(
+    const Json::Value &root, 
+    Json::Value &result) {
+  int rc = 0;
+  FaceService &service = FaceService::getFaceService(); 
+  auto poolInfo = service.getPoolInfo();
+  Json::Value &faceResult = result;
+  faceResult["error_code"] = "0";
+  Json::Value content;
+  Json::Value item;
+  if (poolInfo != nullptr) {
+    item["size"] = poolInfo->size;
+    item["active"] = poolInfo->activeSize;
+  }
+  content["pool_info"] = item;
+  faceResult["result"] = content;
+  faceResult["error_msg"] = "SUCCESS";
+  LOG(INFO) << faceResult.toStyledString();
+  return 0;
+}
+
+int FaceControl:: faceMatchCb(
+    const Json::Value &root, 
+    Json::Value &result) {
+  int rc = 0;
+  int decodeLen = 0;
+  std::string faceData[2];
+  std::string imageType[2];
+  for (int i = 0; i < 2; i++) {
+    JsonUtil::getJsonStringValue(root[i], "image", faceData[i]);
+    JsonUtil::getJsonStringValue(root[i], "image_type", imageType[i]);
+    if (faceData[i].empty() || imageType[i].empty()) {
+      rc = -4;
+      setResponse(rc, "params error", result);
+      return rc;
+    }
+  }
+
+  std::vector<FaceSearchResult> resultList;
+  FaceService &service = FaceService::getFaceService(); 
+  float score;
+  if (imageType[0] == "FACE_TOKEN" && imageType[1] == "FACE_TOKEN") {
+    rc = service.match(faceData[0], faceData[1], score);
+  } else if (imageType[0] == "BASE64" && imageType[1] == "BASE64") {
+    rc = service.matchImage(faceData[0], faceData[1], score);
+  } else if (imageType[0] == "BASE64" && imageType[1] == "FACE_TOKEN") {
+    rc = service.matchImageToken(faceData[0], faceData[1], score);
+  } else if (imageType[1] == "BASE64" && imageType[0] == "FACE_TOKEN") {
+    rc = service.matchImageToken(faceData[1], faceData[0], score);
+  } else {
+    rc = -9;
+  }
+  
+  if (rc != 0) {
+    rc = -4;
+    setResponse(rc, "match error", result);
+    return rc;
+  }
+  Json::Value &faceResult = result;
+  Json::Value compareResult;
+  faceResult["error_code"] = "0";
+  faceResult["error_msg"] = "SUCCESS";
+  compareResult["score"] = score;
+  faceResult["result"] = compareResult;
+  LOG(INFO) << faceResult.toStyledString();
+  return 0;
+}
+
+int FaceControl::init(const kunyan::Config &config) {
+  FaceService &service = 
+    FaceService::getFaceService();
+  return service.init(config);
 }
 
 }

@@ -1,11 +1,11 @@
-include_directories(../include)
-add_definitions(-std=c++11 -g)
-set(BASE /home/panghao/kunlib)
-link_directories(${BASE}/libs ../../lib3/json/lib ../../lib3/ffmpeg-linux/lib ../../lib ../../lib3/lib64 ../../lib3/openblas-linux/lib  ../../lib3/opencv-linux/lib)
-add_executable(feden main.cpp faceControl.cpp cv_help.cpp httpUtil.cpp userControl.cpp http-server.cpp image_buf.cpp image_base64.cpp md5.cpp faceAgent.cpp faceRepo.cpp faceService.cpp)
-add_executable(feden_test test.cpp cv_help.cpp httpUtil.cpp faceControl.cpp userControl.cpp http-server.cpp image_buf.cpp image_base64.cpp md5.cpp faceAgent.cpp faceRepo.cpp faceService.cpp)
-add_executable(test cv_help.cpp liveness.cpp image_base64.cpp image_buf.cpp setting.cpp test_face.cpp compare.cpp)
-target_link_libraries(test FaceSDK BaiduFaceApi-centos json event  opencv_imgcodecs opencv_core opencv_imgproc opencv_highgui opencv_video opencv_videoio avformat avcodec avutil swscale swresample openblas jpeg  tiff png12 glog pthread)
-target_link_libraries(feden FaceSDK BaiduFaceApi-centos json event  opencv_imgcodecs opencv_core opencv_imgproc opencv_highgui opencv_video opencv_videoio avformat avcodec avutil swscale swresample openblas jpeg  tiff png12 glog pthread)
-target_link_libraries(feden_test FaceSDK BaiduFaceApi-centos event jsoncpp  opencv_imgcodecs opencv_core opencv_imgproc opencv_highgui opencv_video opencv_videoio avformat avcodec avutil swscale swresample openblas jpeg  tiff png12 glog pthread)
+add_definitions(-DEVHTP_DEBUG=1 -std=c++11 -g)
+set(BASE /home/panghao/github/kunlib)
+set(PDIR /home/panghao/test-face-api)
+message(STATUS ${CMAKE_SKIP_RPATH})
+include_directories(${PDIR}/include ${BASE}/include  /usr/local/include/zdb ${BASE}/user)
+link_directories(/home/panghao/github/libevhtp/build ./lib /usr/local/lib64  ${PDIR}/facelib  ${BASE}/libs ${PDIR}/lib3/json/lib ${PDIR}/lib3/json/lib-centos    ${PDIR}/lib3/ffmpeg-linux/lib  ${PDIR}/lib3/lib64 ${PDIR}/lib3/openblas-linux/lib  ${PDIR}/lib3/opencv-linux/lib /usr/local/lib64 /usr/local/lib)
+add_executable(feden  featureBufferRedis.cpp featureBufferMemory.cpp main.cpp faceControl.cpp cv_help.cpp httpUtil.cpp userControl.cpp  image_buf.cpp image_base64.cpp md5.cpp faceAgent.cpp faceRepoSql.cpp faceService.cpp)
+
+target_link_libraries(feden resource evdrv evhtp predis hiredis pbase64  kunconfig FaceSDK BaiduFaceApi-centos  jsoncpp   event  opencv_imgcodecs opencv_core opencv_imgproc   openblas glog dbpool zdb pthread)
+ 
 

@@ -11,6 +11,13 @@
 #include <mongoc/mongoc.h>
 
 namespace kface {
+struct PersonFace {
+  std::string appName;
+  std::string groupId;
+  std::string userId;
+  std::string userName;
+  std::shared_ptr<ImageFace> image;
+};
 
 int initRepoFaces(mongoc_client_pool_t *pool, const std::string &name);
 //void savePersonFaces(const std::list<PersonFace> &faces); 

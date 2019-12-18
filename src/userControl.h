@@ -2,12 +2,30 @@
 #define INCLUDE_USER_CONTROL_H
 #include <vector>
 #include "httpUtil.h"
+#include "evdrv/generalControl.h"
 struct evhttp_request;
 namespace kface {
-void userFaceAddCb(struct evhttp_request *req, void *arg);
-void userFaceDelCb(struct evhttp_request *req, void *arg);
-void userDelCb(struct evhttp_request *req, void *arg);
-void groupDelCb(struct evhttp_request *req, void *arg);
-void initUserControl(std::vector<HttpControl> &controls); 
+class UserControl : public GeneralControl {
+  public:
+    static int userFaceAddCb(
+        const Json::Value &root,\
+        Json::Value &result);
+
+    static int userFaceDelCb(
+        const Json::Value &root,\
+        Json::Value &result);
+
+    static int userDelCb(
+        const Json::Value &root,
+        Json::Value &result);
+
+    static int userUpdateCb(
+    const Json::Value &root,
+    Json::Value &result);
+
+    std::vector<HttpControl>
+      getMapping() override;
+};
+
 }
 #endif

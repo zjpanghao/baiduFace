@@ -113,7 +113,6 @@ void FaceAgent::getUserFaces(const std::string &appName,
     const std::string &groupName,
     const std::string &userName,
     std::map<std::string, std::shared_ptr<ImageFace>> &faceMap) {
-
   auto app = getAppFace(appName);
   if (app == nullptr) {
     return;
