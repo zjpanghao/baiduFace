@@ -37,7 +37,6 @@ int FaceService::initAgent() {
 int FaceService::init(const kunyan::Config &config) {
   std::shared_ptr<FeatureBuffer> featureBuffer;
   if (config.get("buffer", "type") == "redis") {
-    std::shared_ptr<RedisPool> redisPool = std::make_shared<RedisPool>(RedisDataSource(config));
     featureBuffer = std::make_shared<FeatureBufferRedis>(Resource::getResource().redisPool());
   } else {
     featureBuffer = std::make_shared<FeatureBufferMemory> ();
