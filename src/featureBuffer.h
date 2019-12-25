@@ -6,7 +6,7 @@ namespace kface {
 class  FeatureBuffer {
  public:
    virtual ~FeatureBuffer() = default;
-   virtual bool init(){};
+   virtual bool init(){ return true;}
    virtual std::shared_ptr<FaceBuffer> getBuffer(const std::string &faceToken) = 0;
   virtual void addBuffer(const std::string &faceToken, std::shared_ptr<FaceBuffer> buffer) = 0;
 };
