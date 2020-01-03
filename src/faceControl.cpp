@@ -28,7 +28,8 @@ int  FaceControl::faceIdentifyCb(
   if (faceData.empty() || imageType.empty() || groupIds.empty()) {
     rc = -4;
     setResponse(rc, "params error", result);
-  return rc;
+    LOG(ERROR) << result.toStyledString();
+    return rc;
   }
   std::regex re(",");
   std::set<std::string> groupList(std::sregex_token_iterator(groupIds.begin(), groupIds.end(), re, -1),
@@ -48,6 +49,7 @@ int  FaceControl::faceIdentifyCb(
   if (rc != 0) {
     rc = -4;
     setResponse(rc, "search error", result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
   Json::Value &faceResult = result;
@@ -81,6 +83,7 @@ int  FaceControl::faceIdentifyCb(
   
   auto end = std::chrono::steady_clock::now();
   auto dureTime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+  LOG(INFO) << faceResult.toStyledString();
   LOG(INFO) << "dure:" << dureTime;
   return 0;
   //faceResult["dure"] = dureTime;
@@ -88,6 +91,7 @@ int  FaceControl::faceIdentifyCb(
 int  FaceControl::faceDetectCb(
     const Json::Value &root, 
     Json::Value &result) {
+  auto start = std::chrono::steady_clock::now();
   std::vector<FaceDetectResult> 
     detectResult;
   std::string data;
@@ -96,6 +100,7 @@ int  FaceControl::faceDetectCb(
   if (data.empty()) {
     rc = -1;
     setResponse(rc, "image error", result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
   int faceNum = 1;
@@ -113,6 +118,7 @@ int  FaceControl::faceDetectCb(
     result.clear();
     setResponse(rc, "detect error", 
         result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
 
@@ -211,9 +217,13 @@ int  FaceControl::faceDetectCb(
     items.append(item);
     it++;
   }
-  content["face_num"] = (int)result.size();
+  content["face_num"] = (int)detectResult.size();
   content["face_list"] = items;
   faceResult["result"] = content;
+  auto end = std::chrono::steady_clock::now();
+  auto dureTime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+  LOG(INFO) << faceResult.toStyledString();
+  LOG(INFO) << "dure:" << dureTime;
   return 0;
 }
 
@@ -270,6 +280,7 @@ int FaceControl:: faceMatchCb(
     if (faceData[i].empty() || imageType[i].empty()) {
       rc = -4;
       setResponse(rc, "params error", result);
+      LOG(ERROR) << result.toStyledString();
       return rc;
     }
   }
@@ -292,6 +303,7 @@ int FaceControl:: faceMatchCb(
   if (rc != 0) {
     rc = -4;
     setResponse(rc, "match error", result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
   Json::Value &faceResult = result;

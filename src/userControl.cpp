@@ -32,6 +32,7 @@ int UserControl::userFaceDelCb(
     rc = -2;
     setResponse(rc, "params error",
         result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
   rc = service.delUserFace(groupId, userId, faceToken);
@@ -76,6 +77,7 @@ int UserControl::userFaceAddCb(
       groupId.empty() ||
       userId.empty()) {
     setResponse(-1, "param error", result);
+    LOG(ERROR) << result.toStyledString();
     return -1;
   }
   int faceNum = 0;
@@ -86,6 +88,7 @@ int UserControl::userFaceAddCb(
   if (rc != 0 || faceToken.length() == 0) {
     setResponse(-1, "add user failed",
         result);
+    LOG(ERROR) << result.toStyledString();
     return -1;
   }
   Json::Value searchResult;
@@ -116,6 +119,7 @@ int UserControl::userUpdateCb(
       groupId.empty() ||
       userId.empty()) {
     setResponse(-1, "param error", result);
+    LOG(ERROR) << result.toStyledString();
     return -1;
   }
   int faceNum = 0;
@@ -125,6 +129,7 @@ int UserControl::userUpdateCb(
   if (rc != 0 || updateResult.faceToken.length() == 0) {
     setResponse(-1, "update user failed",
         result);
+    LOG(ERROR) << result.toStyledString();
     return -1;
   }
   Json::Value &baiduResult = result;
@@ -158,12 +163,14 @@ int UserControl::userDelCb(
   if (groupId.empty() || userId.empty()) {
     setResponse(-1, "param error",
         result);
+    LOG(ERROR) << result.toStyledString();
     return -1;
   }
   rc = service.delUser(groupId, userId);
   if (rc != 0) {
     setResponse(-1, "del user failed",
         result);
+    LOG(ERROR) << result.toStyledString();
     return rc;
   }
   setResponse(0, "SUCCESS", result);

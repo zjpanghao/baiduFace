@@ -1,4 +1,5 @@
 #include "featureBufferRedis.h"
+#include "predis/redis_control.h"
 #include "image_base64.h"
 #include "predis/redis_pool.h"
 #include "predis/redis_cmd.h"
