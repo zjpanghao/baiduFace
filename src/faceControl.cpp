@@ -238,11 +238,19 @@ int FaceControl::faceDebugCb(
   faceResult["error_code"] = "0";
   Json::Value content;
   Json::Value item;
+  Json::Value db;
+  Json::Value redis;
   if (poolInfo != nullptr) {
-    item["size"] = poolInfo->size;
-    item["active"] = poolInfo->activeSize;
+    db["size"] = poolInfo->size;
+    db["active"] = poolInfo->activeSize;
   }
-  content["pool_info"] = item;
+  content["db_info"] = db;
+  auto redisInfo = service.getRedisPoolInfo();
+  if (redisInfo != nullptr) {
+    redis["size"] = redisInfo->size;
+    redis["active"] = redisInfo->activeSize;
+  }
+  content["redis_info"] = redis;
   faceResult["result"] = content;
   faceResult["error_msg"] = "SUCCESS";
   LOG(INFO) << faceResult.toStyledString();

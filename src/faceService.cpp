@@ -449,4 +449,22 @@ int FaceService::delUser(const std::string &groupId,
   return rc;
 }
 
+std::shared_ptr<DBPoolInfo> FaceService::getRedisPoolInfo() {
+  std::shared_ptr<DBPoolInfo> info = std::make_shared<DBPoolInfo> ();
+  auto pool = Resource::getResource().redisPool();  
+  if (pool == nullptr) {
+    return info;
+  }
+  info->activeSize = pool->activeSize();
+  info->size = pool->size();
+  return info;
+}
+
+std::shared_ptr<DBPoolInfo> FaceService::getPoolInfo() {
+  std::shared_ptr<DBPoolInfo> info = std::make_shared<DBPoolInfo> ();
+  faceLibRepo_->getPool()->PoolSizeGet(info->size);
+  faceLibRepo_->getPool()->PoolActiveSizeGet(info->activeSize);
+  return info;
+}
+
 }
