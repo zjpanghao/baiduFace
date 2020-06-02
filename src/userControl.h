@@ -23,6 +23,10 @@ class UserControl : public GeneralControl {
     const Json::Value &root,
     Json::Value &result);
 
+    int userListCb(
+        const Json::Value &root,
+        Json::Value &result);
+
     std::vector<HttpControl>
       getMapping() override;
 };

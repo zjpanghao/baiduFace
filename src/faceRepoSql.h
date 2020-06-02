@@ -16,6 +16,9 @@ struct PersonFace;
 class FaceLibRepo{
   public:
     FaceLibRepo(std::shared_ptr<DBPool> pool);
+    int queryGroupUids(
+      const std::string &gourpId,
+      std::vector<std::string> &uids);
     int loadPersonFaces(const std::string &name, std::list<PersonFace> &faces);
     int  delUserFace(const PersonFace &face);
     int  addUserFace(const PersonFace &face);

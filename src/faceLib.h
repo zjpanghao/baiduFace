@@ -5,6 +5,17 @@
 #include "glog/logging.h"
 namespace kface {
 template <class T>
+class FaceUidMapper : public RowMapper<T> {
+ public:
+   int mapRow(ResultSet_T r,
+       int i,
+       T &t) {
+      this->getString(r, "user_id", t);
+      return 0;
+   }
+};
+
+template <class T>
 class FaceLibMapper : public RowMapper<T> {
  public:
    int mapRow(ResultSet_T r,

@@ -16,6 +16,20 @@ namespace kface {
   FaceLibRepo::FaceLibRepo(std::shared_ptr<DBPool> pool):pool_(pool) {
   }
 
+  int FaceLibRepo::queryGroupUids(
+      const std::string &groupId,
+      std::vector<std::string> &uids) {
+    std::string sql = 
+      "SELECT distinct user_id from face_lib where group_id = ?";
+    PreparedStmt ps(sql);
+    ps.setString(1, groupId);
+    SqlTemplate sqlTemplate(pool_);
+    FaceUidMapper<std::string> fbMapper;
+    return sqlTemplate.query<std::string>(ps, 
+        fbMapper, 
+        uids);
+  }
+
   int FaceLibRepo::loadPersonFaces(const std::string &name, std::list<PersonFace> &faces) {
     std::string sql = "SELECT group_id, user_id, user_name, face_token, feature from face_lib";
     SqlTemplate sqlTemplate(pool_);

@@ -2,28 +2,27 @@
 #include "image_base64.h"
 #include <chrono>
 #include <sys/time.h>
+#include "timer/timer.h"
+#include <glog/logging.h>
 
 #define BAIDU_FEATURE_KEY "baiduFeature"
 namespace kface {
 
 void FeatureBufferMemory::clear() {
-  while (true) {
-    time_t current = time(NULL);
-    struct tm val;
-    localtime_r(&current, &val);
-    int mday = val.tm_mday;
-    if (mday != mdayOld_) {
-      std::lock_guard<std::mutex> guard(lock_);
-      faceFeatureMap_.clear();
-      mdayOld_ = val.tm_mday;
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(120));
+  time_t current = time(NULL);
+  struct tm val;
+  localtime_r(&current, &val);
+  int mday = val.tm_mday;
+  if (mday != mdayOld_) {
+    std::lock_guard<std::mutex> guard(lock_);
+    LOG(INFO) << "clear:" << faceFeatureMap_.size();
+    faceFeatureMap_.clear();
+    mdayOld_ = val.tm_mday;
   }
 }
 
 bool FeatureBufferMemory::init() {
-  thd_ = std::make_shared<std::thread>(&FeatureBufferMemory::clear, this);
-  thd_->detach();
+  kun::Timer::getTimer().addFunc(120, -1, std::bind(&FeatureBufferMemory::clear, this));
   return true;
 }
 

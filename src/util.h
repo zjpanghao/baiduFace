@@ -45,6 +45,7 @@ class RWLockGuard {
 
 
 //template<class E>
+namespace baidu {
 class JsonUtil {
   public:
     template <typename T, class = typename std::enable_if<!std::is_same<T, std::string>::value>::type>
@@ -69,5 +70,6 @@ class JsonUtil {
       t = value[key].asString();
     }
 };
+}
 
 #endif

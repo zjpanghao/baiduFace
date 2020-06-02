@@ -1,6 +1,7 @@
 #include "faceService.h"
 #include <sys/time.h>
 #include <set>
+#include <sstream>
 #include "image_base64.h"
 #include "md5.h"
 #include "faceAgent.h"
@@ -62,10 +63,14 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   Mat m = imdecode(Mat(data), 1);
   std::unique_ptr<std::vector<TrackFaceInfo>> out(new std::vector<TrackFaceInfo>());
   std::vector<TrackFaceInfo> *vec = out.get();
+  auto begin = std::chrono::steady_clock::now();
   int nFace = api->track(vec, m, faceNum);
   if (nFace <= 0) {
     return 0;
   }
+  auto end = std::chrono::steady_clock::now();
+  std::chrono::duration<double> cost = end - begin;
+  LOG(INFO) << "detect cost time:" << cost.count();
   for (TrackFaceInfo &info : *out) {
     FaceDetectResult result;
     result.trackInfo = info;
@@ -98,10 +103,14 @@ int FaceService::detect(const std::vector<unsigned char> &data,
     std::vector<unsigned char> childImage;
     imencode(".jpg", child, childImage);  
     const float *feature = nullptr;
+    auto begin1 = std::chrono::steady_clock::now();
     int count = api->get_face_feature_by_buf(&childImage[0], childImage.size(), feature);
     if (count != 512) {
       continue;
     }
+    auto end1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> cost1 = end1 - begin1;
+    LOG(INFO) << "feature cost time:" << cost1.count();
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
@@ -337,8 +346,9 @@ std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data
   auto api = baiduApi->api();
   std::shared_ptr<FaceQuality> value;
   std::string result =  api->face_quality_by_buf(data, len);
+  LOG(INFO) << result;
   Json::Value root;
-  Json::Reader reader;;
+  Json::Reader reader(Json::Features::strictMode());
   std::stringstream ss;
   if (true == reader.parse(result, root)) {
     if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
@@ -466,5 +476,43 @@ std::shared_ptr<DBPoolInfo> FaceService::getPoolInfo() {
   faceLibRepo_->getPool()->PoolActiveSizeGet(info->activeSize);
   return info;
 }
+
+int FaceService::queryGroupUids(
+    const std::string &groupId,
+    int start,
+    int length,
+    std::vector<std::string> &uids) {
+  int rc = 0;
+  rc = faceLibRepo_->queryGroupUids(groupId,
+      uids);
+  uids.erase(std::remove_if(uids.begin(), uids.end(),[start](const std::string &v) {
+      std::stringstream ss;
+      int t;
+      ss << v;
+      ss >> t;
+      return  t < start;
+      }), uids.end()) ;
+  std::partial_sort(uids.begin(),
+      uids.size() > length ? uids.begin() + length
+      : uids.end(),
+      uids.end(),
+      [](const std::string &v1, const std::string &v2) {
+
+      std::stringstream ss;
+      ss.clear();
+      ss.str("");
+      ss << v1;
+      int t1, t2;
+      ss >> t1;
+      ss.clear();
+      ss.str("");
+      ss << v2;
+      ss >> t2;
+      return t1 < t2;
+      });
+    if (uids.size() > length) {
+      uids.erase(uids.begin() + length, uids.end());
+    }
+  }
 
 }

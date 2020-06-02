@@ -157,6 +157,11 @@ class FaceService {
 
   std::shared_ptr<DBPoolInfo> getPoolInfo();
   std::shared_ptr<DBPoolInfo> getRedisPoolInfo();
+  int queryGroupUids(
+      const std::string &groupId,
+      int start,
+      int length,
+      std::vector<std::string> &uids);
 
  private:
   int search(std::shared_ptr<BaiduFaceApiService> api,

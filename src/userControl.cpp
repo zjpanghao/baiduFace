@@ -1,4 +1,5 @@
 #include "userControl.h"
+#include <functional>
 #include "json/json.h"
 #include "image_base64.h"
 
@@ -10,6 +11,7 @@
 #include "faceService.h"
 #include "httpUtil.h"
 #include "util.h"
+#include "jsonUtil.h"
 
 namespace kface {
 /* delete user face */
@@ -23,9 +25,9 @@ int UserControl::userFaceDelCb(
   std::string groupId;
   std::string userId;
   std::string faceToken;
-  JsonUtil::JsonUtil::getJsonStringValue(root, "group_id", groupId);
-  JsonUtil::getJsonStringValue(root, "user_id", userId);
-  JsonUtil::getJsonStringValue(root, "face_token", faceToken);
+  JsonUtil::JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonString(root, "user_id", userId);
+  JsonUtil::getJsonString(root, "face_token", faceToken);
   if (groupId.empty()
       || userId.empty()
       || faceToken.empty()) {
@@ -45,17 +47,6 @@ int UserControl::userFaceDelCb(
   return rc;
 }
 
-std::vector<HttpControl>
-UserControl::getMapping() {
-  std::vector<HttpControl> controlList = {
-    {"/face-api/v3/face/add", UserControl::userFaceAddCb},
-    {"/face-api/v3/face/delete", UserControl::userFaceDelCb},
-    {"/face-api/v3/user/delete", UserControl::userDelCb},
-    /* remove user's faces then add new face */
-    {"/face-api/v3/face/update", UserControl::userUpdateCb},
-  };
-  return controlList;
-}
 
 
 /* add face to user*/
@@ -69,10 +60,10 @@ int UserControl::userFaceAddCb(
   std::string userId;
   std::string userInfo;
   std::string data;
-  JsonUtil::getJsonStringValue(root, "group_id", groupId);
-  JsonUtil::getJsonStringValue(root, "user_id", userId);
-  JsonUtil::getJsonStringValue(root, "user_info", userInfo);
-  JsonUtil::getJsonStringValue(root, "image", data);
+  JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonString(root, "user_id", userId);
+  JsonUtil::getJsonString(root, "user_info", userInfo);
+  JsonUtil::getJsonString(root, "image", data);
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
@@ -111,10 +102,10 @@ int UserControl::userUpdateCb(
   std::string userId;
   std::string userInfo;
   std::string data;
-  JsonUtil::getJsonStringValue(root, "group_id", groupId);
-  JsonUtil::getJsonStringValue(root, "user_id", userId);
-  JsonUtil::getJsonStringValue(root, "user_info", userInfo);
-  JsonUtil::getJsonStringValue(root, "image", data);
+  JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonString(root, "user_id", userId);
+  JsonUtil::getJsonString(root, "user_info", userInfo);
+  JsonUtil::getJsonString(root, "image", data);
   if (data.empty() ||
       groupId.empty() ||
       userId.empty()) {
@@ -158,8 +149,8 @@ int UserControl::userDelCb(
   FaceService &service = FaceService::getFaceService(); 
   std::string groupId;
   std::string userId;
-  JsonUtil::getJsonStringValue(root, "group_id", groupId);
-  JsonUtil::getJsonStringValue(root, "user_id", userId);
+  JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonString(root, "user_id", userId);
   if (groupId.empty() || userId.empty()) {
     setResponse(-1, "param error",
         result);
@@ -176,6 +167,65 @@ int UserControl::userDelCb(
   setResponse(0, "SUCCESS", result);
   LOG(INFO) << result.toStyledString();
   return rc;
+}
+
+int UserControl::userListCb(
+    const Json::Value &root,
+    Json::Value &result) {
+  std::string groupId;
+  int start = 0;
+  int length = 1000;
+  JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonInt(root, "start", start);
+  JsonUtil::getJsonInt(root, "length", length);
+  LOG(INFO) << "groupId:" << groupId;
+  if (groupId.empty() || start < 0 || length <= 0) {
+    setResponse(-1, "params error",
+        result);
+    LOG(ERROR) << result.toStyledString();
+    return -1;
+  }
+  std::vector<std::string> uids;
+  FaceService &service = 
+    FaceService::getFaceService(); 
+  int rc = service.queryGroupUids(groupId,
+      start,
+      length,
+      uids);
+  if (rc < 0) {
+    setResponse(-1, "query group uids error",
+        result);
+    LOG(ERROR) << result.toStyledString();
+    return -2;
+  }
+  LOG(INFO) << "query uids:" << uids.size();
+  Json::Value uidValues;
+  for (auto &id : uids) {
+    uidValues.append(id);
+  }
+  Json::Value uidResult;
+  uidResult["user_id_list"] = uidValues;
+  result["result"] = uidResult;
+  result["error_code"] = 0;
+  result["error_msg"] = "SUCCESS";
+  return 0;
+}
+
+std::vector<HttpControl>
+UserControl::getMapping() {
+  std::vector<HttpControl> controlList = {
+    {"/face-api/v3/face/add", UserControl::userFaceAddCb},
+    {"/face-api/v3/face/delete", UserControl::userFaceDelCb},
+    {"/face-api/v3/user/delete", UserControl::userDelCb},
+    /* remove user's faces then add new face */
+    {"/face-api/v3/face/update", UserControl::userUpdateCb},
+    {"/face-api/v3/user/list", 
+      std::bind(&UserControl::userListCb,
+          this,
+          std::placeholders::_1,
+          std::placeholders::_2)},
+  };
+  return controlList;
 }
 
 }

@@ -8,6 +8,7 @@
 #include <iterator>
 #include <regex>
 #include "faceService.h"
+#include "jsonUtil.h"
 #include "util.h"
 #include "httpUtil.h"
 namespace kface {
@@ -18,13 +19,13 @@ int  FaceControl::faceIdentifyCb(
   int decodeLen = 0;
   auto start = std::chrono::steady_clock::now();
   std::string faceData;
-  JsonUtil::getJsonStringValue(root, "image", faceData);
+  JsonUtil::getJsonString(root, "image", faceData);
   std::string imageType;
-  JsonUtil::getJsonStringValue(root, "image_type", imageType);
+  JsonUtil::getJsonString(root, "image_type", imageType);
   int faceNum = 1;
-  JsonUtil::getJsonValue(root, "max_user_num", faceNum);
+  baidu::JsonUtil::getJsonValue(root, "max_user_num", faceNum);
   std::string groupIds;
-  JsonUtil::getJsonStringValue(root, "group_id_list", groupIds);
+  JsonUtil::getJsonString(root, "group_id_list", groupIds);
   if (faceData.empty() || imageType.empty() || groupIds.empty()) {
     rc = -4;
     setResponse(rc, "params error", result);
@@ -95,7 +96,7 @@ int  FaceControl::faceDetectCb(
   std::vector<FaceDetectResult> 
     detectResult;
   std::string data;
-  JsonUtil::getJsonStringValue(root, "image", data);
+  JsonUtil::getJsonString(root, "image", data);
   int rc = 0;
   if (data.empty()) {
     rc = -1;
@@ -104,7 +105,7 @@ int  FaceControl::faceDetectCb(
     return rc;
   }
   int faceNum = 1;
-  JsonUtil::getJsonValue(root, "max_face_num", faceNum);
+  baidu::JsonUtil::getJsonValue(root, "max_face_num", faceNum);
   LOG(INFO) << "max_face_num:" << faceNum << "image:" << data.length();
   std::string decodeData;
   int decodeLen = 0;
@@ -275,8 +276,8 @@ int FaceControl:: faceMatchCb(
   std::string faceData[2];
   std::string imageType[2];
   for (int i = 0; i < 2; i++) {
-    JsonUtil::getJsonStringValue(root[i], "image", faceData[i]);
-    JsonUtil::getJsonStringValue(root[i], "image_type", imageType[i]);
+    JsonUtil::getJsonString(root[i], "image", faceData[i]);
+    JsonUtil::getJsonString(root[i], "image_type", imageType[i]);
     if (faceData[i].empty() || imageType[i].empty()) {
       rc = -4;
       setResponse(rc, "params error", result);
