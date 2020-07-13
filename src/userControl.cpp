@@ -20,12 +20,11 @@ int UserControl::userFaceDelCb(
     Json::Value &result) {
   int rc = 0;
   int len = 0;
-  Json::Value &delResult = result;
   FaceService &service = FaceService::getFaceService(); 
   std::string groupId;
   std::string userId;
   std::string faceToken;
-  JsonUtil::JsonUtil::getJsonString(root, "group_id", groupId);
+  JsonUtil::getJsonString(root, "group_id", groupId);
   JsonUtil::getJsonString(root, "user_id", userId);
   JsonUtil::getJsonString(root, "face_token", faceToken);
   if (groupId.empty()
@@ -193,7 +192,8 @@ int UserControl::userListCb(
       length,
       uids);
   if (rc < 0) {
-    setResponse(-1, "query group uids error",
+    setResponse(-2, 
+        "query group uids error",
         result);
     LOG(ERROR) << result.toStyledString();
     return -2;
