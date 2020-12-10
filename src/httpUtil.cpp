@@ -78,7 +78,7 @@
 //
 void setResponse(int errorCode, 
     std::string msg,
-    Json::Value &result) {
+    pson::Json::Value &result) {
   std::stringstream ss;
   ss << errorCode;
   std::string tmp;
@@ -91,7 +91,7 @@ void sendResponse(int errorCode,
     std::string msg,  
     struct evhttp_request *&req, 
     evbuffer *&response) {
-  Json::Value root;
+  pson::Json::Value root;
   std::stringstream ss;
   ss << errorCode;
   std::string tmp;
@@ -129,12 +129,12 @@ std::string getBodyStr(struct evhttp_request *req) {
   return result;
 }
 
- bool getBodyJson(struct evhttp_request *req, Json::Value &root) {
+ bool getBodyJson(struct evhttp_request *req, pson::Json::Value &root) {
    std::string body = getBodyStr(req);
    if (body == "") {
      return false;
    }
-   Json::Reader reader(Json::Features::strictMode());
+   pson::Json::Reader reader(pson::Json::Features::strictMode());
    return reader.parse(body, root);
 }
 

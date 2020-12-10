@@ -16,8 +16,8 @@
 namespace kface {
 /* delete user face */
 int UserControl::userFaceDelCb(
-    const Json::Value &root,
-    Json::Value &result) {
+    const pson::Json::Value &root,
+    pson::Json::Value &result) {
   int rc = 0;
   int len = 0;
   FaceService &service = FaceService::getFaceService(); 
@@ -50,8 +50,8 @@ int UserControl::userFaceDelCb(
 
 /* add face to user*/
 int UserControl::userFaceAddCb(
-    const Json::Value &root,
-    Json::Value &result) {
+    const pson::Json::Value &root,
+    pson::Json::Value &result) {
   int rc = 0;
   int len = 0;
   FaceService &service = FaceService::getFaceService(); 
@@ -81,7 +81,7 @@ int UserControl::userFaceAddCb(
     LOG(ERROR) << result.toStyledString();
     return -1;
   }
-  Json::Value searchResult;
+  pson::Json::Value searchResult;
   searchResult["face_token"] = faceToken;
   result["result"] = searchResult;
   result["error_code"] = "0";
@@ -92,8 +92,8 @@ int UserControl::userFaceAddCb(
 
 /* remove user's faces then add new face */
 int UserControl::userUpdateCb(
-    const Json::Value &root,
-    Json::Value &result) {
+    const pson::Json::Value &root,
+    pson::Json::Value &result) {
   int rc = 0;
   int len = 0;
   FaceService &service = FaceService::getFaceService(); 
@@ -122,10 +122,10 @@ int UserControl::userUpdateCb(
     LOG(ERROR) << result.toStyledString();
     return -1;
   }
-  Json::Value &baiduResult = result;
-  Json::Value faceResult;
+  pson::Json::Value &baiduResult = result;
+  pson::Json::Value faceResult;
   faceResult["face_token"] = updateResult.faceToken;
-  Json::Value location;
+  pson::Json::Value location;
   location["left"] = updateResult.location.x;
   location["top"] = updateResult.location.y;
   location["width"] = updateResult.location.width;
@@ -141,8 +141,8 @@ int UserControl::userUpdateCb(
 
 /*delete user*/
 int UserControl::userDelCb(
-    const Json::Value &root,
-    Json::Value &result) {
+    const pson::Json::Value &root,
+    pson::Json::Value &result) {
   int rc = 0;
   int len = 0;
   FaceService &service = FaceService::getFaceService(); 
@@ -169,8 +169,8 @@ int UserControl::userDelCb(
 }
 
 int UserControl::userListCb(
-    const Json::Value &root,
-    Json::Value &result) {
+    const pson::Json::Value &root,
+    pson::Json::Value &result) {
   std::string groupId;
   int start = 0;
   int length = 1000;
@@ -199,11 +199,11 @@ int UserControl::userListCb(
     return -2;
   }
   LOG(INFO) << "query uids:" << uids.size();
-  Json::Value uidValues;
+  pson::Json::Value uidValues;
   for (auto &id : uids) {
     uidValues.append(id);
   }
-  Json::Value uidResult;
+  pson::Json::Value uidResult;
   uidResult["user_id_list"] = uidValues;
   result["result"] = uidResult;
   result["error_code"] = 0;

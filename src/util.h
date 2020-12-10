@@ -49,7 +49,7 @@ namespace baidu {
 class JsonUtil {
   public:
     template <typename T, class = typename std::enable_if<!std::is_same<T, std::string>::value>::type>
-    static void getJsonValue(const Json::Value &value, const std::string &key, T &t) {
+    static void getJsonValue(const pson::Json::Value &value, const std::string &key, T &t) {
       if (value.isNull() 
         || !value.isMember(key) 
         || !value[key].isString()) {
@@ -61,7 +61,7 @@ class JsonUtil {
     }
 
     template <typename T, class = typename std::enable_if<std::is_same<T, std::string>::value>::type>
-    static void getJsonStringValue(const Json::Value &value, const std::string &key, T &t) {
+    static void getJsonStringValue(const pson::Json::Value &value, const std::string &key, T &t) {
       if (value.isNull() 
         || !value.isMember(key) 
         || !value[key].isString()) {

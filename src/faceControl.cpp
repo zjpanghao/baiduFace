@@ -13,8 +13,8 @@
 #include "httpUtil.h"
 namespace kface {
 int  FaceControl::faceIdentifyCb(
-    const Json::Value &root, 
-    Json::Value &result) {
+    const pson::Json::Value &root, 
+    pson::Json::Value &result) {
   int rc = 0;
   int decodeLen = 0;
   auto start = std::chrono::steady_clock::now();
@@ -53,13 +53,13 @@ int  FaceControl::faceIdentifyCb(
     LOG(ERROR) << result.toStyledString();
     return rc;
   }
-  Json::Value &faceResult = result;
+  pson::Json::Value &faceResult = result;
  
   faceResult["error_code"] = "0";
-  Json::Value content;
-  Json::Value items;
+  pson::Json::Value content;
+  pson::Json::Value items;
   for (FaceSearchResult &faceSearchResult : resultList) {
-    Json::Value item;
+    pson::Json::Value item;
     item["user_id"] = 
       faceSearchResult.userId;
     item["score"] 
@@ -76,7 +76,7 @@ int  FaceControl::faceIdentifyCb(
   if (resultList.size() > 0) {
     faceResult["error_msg"] = "SUCCESS";
   } else {
-    Json::Value content;
+    pson::Json::Value content;
     faceResult["error_code"] = "222207";
     faceResult["error_msg"] = "match user is not found";
     faceResult["result"] = content;
@@ -90,8 +90,8 @@ int  FaceControl::faceIdentifyCb(
   //faceResult["dure"] = dureTime;
 }
 int  FaceControl::faceDetectCb(
-    const Json::Value &root, 
-    Json::Value &result) {
+    const pson::Json::Value &root, 
+    pson::Json::Value &result) {
   auto start = std::chrono::steady_clock::now();
   std::vector<FaceDetectResult> 
     detectResult;
@@ -130,45 +130,45 @@ int  FaceControl::faceDetectCb(
   }
   faceResult["error_code"] = "0";
   faceResult["error_msg"] = "SUCCESS";
-  Json::Value content;
-  Json::Value item;
-  Json::Value items;
+  pson::Json::Value content;
+  pson::Json::Value item;
+  pson::Json::Value items;
   auto it = detectResult.begin();
   while (it != detectResult.end()) {
-    Json::Value item;
+    pson::Json::Value item;
     item["face_token"] = it->faceToken;
-    Json::Value faceType;
+    pson::Json::Value faceType;
     faceType["probability"] = 1;
     faceType["type"] = "human";
     item["face_type"] = faceType;
     if (it->attr != nullptr) {
-      Json::Value gender;
+      pson::Json::Value gender;
       gender["type"] = it->attr->gender == 1 ? "male" : "female";
       gender["probability"] = it->attr->genderConfidence;
       item["gender"] = gender;
       item["age"] = it->attr->age;
-      Json::Value glasses;
+      pson::Json::Value glasses;
       glasses["type"] = "NONE";
       item["glasses"] = glasses;
-      Json::Value expression;
+      pson::Json::Value expression;
       expression["type"] = it->attr->expression ? "smile" : "none";
       item["expression"] = expression;
     } else {
-      Json::Value gender;
+      pson::Json::Value gender;
       gender["type"] = "male";
       gender["probability"] = 0.99;
       item["gender"] = gender;
       item["age"] = 30;
-      Json::Value glasses;
+      pson::Json::Value glasses;
       glasses["type"] = "NONE";
       item["glasses"] = glasses;
-      Json::Value expression;
+      pson::Json::Value expression;
       expression["type"] = "none";
       item["expression"] = expression;
     }
     
     item["face_probability"] =  it->trackInfo.score;
-    Json::Value location;
+    pson::Json::Value location;
     location["left"] = it->location.x;
     location["top"] = it->location.y;
     location["width"] = it->location.width;
@@ -176,11 +176,11 @@ int  FaceControl::faceDetectCb(
     location["rotation"] = it->location.rotation;
     item["location"] = location;
     if (it->quality != nullptr) {
-      Json::Value quality;
+      pson::Json::Value quality;
       quality["illumination"] = it->quality->illumination;
       quality["blur"] = it->quality->blur;
       quality["completeness"] = it->quality->completeness;
-      Json::Value occl;
+      pson::Json::Value occl;
       occl["left_eye"] = (int)it->quality->occlution.leftEye;
       occl["right_eye"] = (int)it->quality->occlution.rightEye;
       occl["left_cheek"] = (int)it->quality->occlution.leftCheek;
@@ -192,11 +192,11 @@ int  FaceControl::faceDetectCb(
       quality["completeness"] = it->quality->completeness;
       item["quality"] = quality;
     } else {
-      Json::Value quality;
+      pson::Json::Value quality;
       quality["illumination"] = 100;
       quality["blur"] = 0;
       quality["completeness"] = 1;
-      Json::Value occl;
+      pson::Json::Value occl;
       occl["left_eye"] = 0;
       occl["right_eye"] = 0;
       occl["left_cheek"] = 0;
@@ -208,7 +208,7 @@ int  FaceControl::faceDetectCb(
       item["quality"] = quality;
     }
 
-    Json::Value headPose;
+    pson::Json::Value headPose;
     int inx = 0;
     std::vector<std::string> angleNames{"roll", "pitch", "yaw"};
     for (float v : it->trackInfo.headPose) {
@@ -240,17 +240,17 @@ std::vector<HttpControl>
   }
 
 int FaceControl::faceDebugCb(
-    const Json::Value &root, 
-    Json::Value &result) {
+    const pson::Json::Value &root, 
+    pson::Json::Value &result) {
   int rc = 0;
   FaceService &service = FaceService::getFaceService(); 
   auto poolInfo = service.getPoolInfo();
-  Json::Value &faceResult = result;
+  pson::Json::Value &faceResult = result;
   faceResult["error_code"] = "0";
-  Json::Value content;
-  Json::Value item;
-  Json::Value db;
-  Json::Value redis;
+  pson::Json::Value content;
+  pson::Json::Value item;
+  pson::Json::Value db;
+  pson::Json::Value redis;
   if (poolInfo != nullptr) {
     db["size"] = poolInfo->size;
     db["active"] = poolInfo->activeSize;
@@ -269,8 +269,8 @@ int FaceControl::faceDebugCb(
 }
 
 int FaceControl:: faceMatchCb(
-    const Json::Value &root, 
-    Json::Value &result) {
+    const pson::Json::Value &root, 
+    pson::Json::Value &result) {
   int rc = 0;
   int decodeLen = 0;
   std::string faceData[2];
@@ -307,8 +307,8 @@ int FaceControl:: faceMatchCb(
     LOG(ERROR) << result.toStyledString();
     return rc;
   }
-  Json::Value &faceResult = result;
-  Json::Value compareResult;
+  pson::Json::Value &faceResult = result;
+  pson::Json::Value compareResult;
   faceResult["error_code"] = "0";
   faceResult["error_msg"] = "SUCCESS";
   compareResult["score"] = score;

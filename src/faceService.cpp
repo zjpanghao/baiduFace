@@ -114,8 +114,8 @@ int FaceService::detect(const std::vector<unsigned char> &data,
   
     std::shared_ptr<FaceBuffer> buffer(new FaceBuffer());
     buffer->feature.assign(feature, feature + 512);
-    result.attr = nullptr;//getAttr(&childImage[0], childImage.size(), baiduApi);
-    result.quality = nullptr;//faceQuality(&childImage[0], childImage.size(), baiduApi);;
+    result.attr = getAttr(&childImage[0], childImage.size(), baiduApi);
+    result.quality = faceQuality(&childImage[0], childImage.size(), baiduApi);;
     result.faceToken = MD5(ImageBase64::encode(&childImage[0], childImage.size())).toStr(); 
     featureBuffers_->addBuffer(result.faceToken, buffer);
     detectResult.push_back(result);
@@ -292,8 +292,8 @@ int FaceService::search(std::shared_ptr<BaiduFaceApiService> baiduApi,
 }
 
 template<class E>
-static void getBaiString(Json::Value &value, const std::string &key, E &t) {
-  Json::Value &tmp = value["data"]["result"];
+static void getBaiString(pson::Json::Value &value, const std::string &key, E &t) {
+  pson::Json::Value &tmp = value["data"]["result"];
   if (tmp.isNull() || tmp[key].isNull()) {
     return;
   }
@@ -319,8 +319,8 @@ std::shared_ptr<FaceAttr>  FaceService::getAttr(const unsigned char *data,
   std::shared_ptr<FaceAttr> attr;
   std::string result =  api->face_attr_by_buf(data, len);
   LOG(INFO) << result;
-  Json::Value root;
-  Json::Reader reader;;
+  pson::Json::Value root;
+  pson::Json::Reader reader;;
   if (true == reader.parse(result, root)) {
     if (!root["errno"].isNull() && root["errno"].asInt() == 0) {
       attr.reset(new FaceAttr()); 
@@ -347,8 +347,8 @@ std::shared_ptr<FaceQuality>  FaceService::faceQuality(const unsigned char *data
   std::shared_ptr<FaceQuality> value;
   std::string result =  api->face_quality_by_buf(data, len);
   LOG(INFO) << result;
-  Json::Value root;
-  Json::Reader reader(Json::Features::strictMode());
+  pson::Json::Value root;
+  pson::Json::Reader reader(pson::Json::Features::strictMode());
   std::stringstream ss;
   if (true == reader.parse(result, root)) {
     if (!root["errno"].isNull() && root["errno"].asInt() == 0) {

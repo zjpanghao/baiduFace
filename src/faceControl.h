@@ -12,19 +12,19 @@ class FaceControl : public GeneralControl{
     FaceControl() = default;
 
     static int faceDebugCb(
-        const Json::Value &root, 
-        Json::Value &result);
+        const pson::Json::Value &root, 
+        pson::Json::Value &result);
 
     static int faceMatchCb(
-        const Json::Value &root, 
-        Json::Value &result); 
+        const pson::Json::Value &root, 
+        pson::Json::Value &result); 
 
     static int faceIdentifyCb(
-        const Json::Value &root,
-        Json::Value &result);
+        const pson::Json::Value &root,
+        pson::Json::Value &result);
     static int faceDetectCb(
-        const Json::Value &root, 
-        Json::Value &result);
+        const pson::Json::Value &root, 
+        pson::Json::Value &result);
     std::vector<HttpControl>
       getMapping() override;
     int init(const kunyan::Config &config) override;

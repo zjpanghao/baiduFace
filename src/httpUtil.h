@@ -8,11 +8,11 @@
 struct evhttp_request;
 struct evbuffer;
 std::string getBodyStr(struct evhttp_request *req);
-bool getBodyJson(struct evhttp_request *req, Json::Value &root);
+bool getBodyJson(struct evhttp_request *req, pson::Json::Value &root);
 
 void setResponse(int errorCode, 
     std::string msg,
-    Json::Value &result);
+    pson::Json::Value &result);
 
 void sendResponse(int errorCode, 
     std::string msg,  

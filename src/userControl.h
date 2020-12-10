@@ -8,24 +8,24 @@ namespace kface {
 class UserControl : public GeneralControl {
   public:
     static int userFaceAddCb(
-        const Json::Value &root,\
-        Json::Value &result);
+        const pson::Json::Value &root,\
+        pson::Json::Value &result);
 
     static int userFaceDelCb(
-        const Json::Value &root,\
-        Json::Value &result);
+        const pson::Json::Value &root,\
+        pson::Json::Value &result);
 
     static int userDelCb(
-        const Json::Value &root,
-        Json::Value &result);
+        const pson::Json::Value &root,
+        pson::Json::Value &result);
 
     static int userUpdateCb(
-    const Json::Value &root,
-    Json::Value &result);
+    const pson::Json::Value &root,
+    pson::Json::Value &result);
 
     int userListCb(
-        const Json::Value &root,
-        Json::Value &result);
+        const pson::Json::Value &root,
+        pson::Json::Value &result);
 
     std::vector<HttpControl>
       getMapping() override;
