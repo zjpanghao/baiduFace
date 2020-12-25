@@ -179,8 +179,6 @@ class FaceService {
   std::shared_ptr<FaceQuality> faceQuality(const unsigned char *data, 
                                                 int len,
                                                 std::shared_ptr<BaiduFaceApiService> api);
-  /*load facelib*/
-  int initAgent();
   /*face feature buffer ordered by faceToken, clear by day*/
   std::shared_ptr<FeatureBuffer>  featureBuffers_{nullptr}; 
 

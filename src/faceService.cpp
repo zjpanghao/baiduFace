@@ -31,21 +31,18 @@ FaceService& FaceService::getFaceService() {
 FaceService::FaceService() {
 }
 
-int FaceService::initAgent() {
-  return 0;
-}
-
 int FaceService::init(const kunyan::Config &config) {
-  std::shared_ptr<FeatureBuffer> featureBuffer;
   if (config.get("buffer", "type") == "redis") {
-    featureBuffer = std::make_shared<FeatureBufferRedis>(Resource::getResource().redisPool());
+    featureBuffers_ = 
+			std::make_shared<FeatureBufferRedis>(
+			Resource::getResource().redisPool());
   } else {
-    featureBuffer = std::make_shared<FeatureBufferMemory> ();
+    featureBuffers_ = std::make_shared<FeatureBufferMemory> ();
   }
-  apiBuffers_.init(1, config);
-  faceLibRepo_ = std::make_shared<FaceLibRepo>(Resource::getResource().dbPool());
-  featureBuffers_ = featureBuffer;
   featureBuffers_->init();
+  apiBuffers_.init(1, config);
+  faceLibRepo_ = 
+		std::make_shared<FaceLibRepo>(Resource::getResource().dbPool());
   return 0;
 }
 
